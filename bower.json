@@ -1,0 +1,8 @@
+{
+  "name": "alkali-todo",
+  "dependencies": {
+    "dojo": "~1.9",
+    "alkali": "~0.2.6"
+    "todomvc-common": "~0.3"
+  }
+}
