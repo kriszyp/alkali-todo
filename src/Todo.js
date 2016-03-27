@@ -1,71 +1,52 @@
-import { Div, Section, Span, A, Header, H1, Form, Footer, Label, UL, LI, Button, Input, Checkbox, Item } from 'alkali/Element'
-import TodoModel from './TodoModel'
-let todoModel = new TodoModel([{name: 'first one'}])
+import Variable from 'alkali/Variable';
 
-let LabelView = Label('.view', [Item.property('name')], {
-	textDecoration: Item.property('completed').to((completed) => completed ? 'line-through' : 'none'),
-	ondblclick() {
+TodoList = class extends Variable {
+	completeAll() {
+		this.forEach((todo) => {
+			if (!todo.completed) {
+				todo.completed = true;
+				this.updated(todo);
+			}
+		});
 	}
-})
+}
+export default class Todo extends Variable {
+	constructor() {
+		this.list = TodoList.for(this)
+	}
+	add() {
+		this.push({ // add a new todo
+			name: this.get('newItem')
+		});
+		this.set('newItem', '') // clear out the input
+	}
+	completeAll() {
+		this.list.completeAll()
+	}
 
-
-class TodoView extends Div({id: 'todo'}, [
-	Section('#todoapp', [
-		Header('#header', [
-			H1(['todos']),
-			Form([
-				Input({
-					autofocus: true,
-					placeholder: 'What needs to be done?',
-					value: todoModel.property('newItem')
-				})
-			], {
-				onsubmit(event) {
-					event.preventDefault()
-					todoModel.add()
-				}
-			})
-		]),
-		Section('.main', [
-			Checkbox('#toggle-all', {
-				onchange() { todoModel.completeAll() }
-			}),
-			Label,
-			UL('#todo-list', {
-				content: todoModel.todoView,
-				each: LI('.task', [
-					Checkbox('.toggle', Item.property('completed')),
-					LabelView,
-					Button('.destroy', {
-						onclick() { todoModel.delete(Item.for(this)) }
-					})
-				])
-			})
-		]),
-		Footer([
-			Span(todoModel.todoCount),
-			Span(todoModel.todoCount.to((count) => count > 1 ? 'items left' : 'item left')),
-			UL('#filters', [
-				LI, [
-					A({href: '#/all'}, [
-						'All'
-					])
-				],
-				LI, [
-					A({href: '#/active'}, [
-						'Active'
-					])
-				],
-				LI, [
-					A({href: '#/completed'}, [
-						'Completed'
-					])
-				],
-			])
-		])
-	])
-]) {
+	delete(todo) {
+		this.list.splice(this.list.indexOf(todo), 1);
+	}
+	get activeView() {
+		return this.list.filter((todo) => !todo.completed)
+	}
+	get completedView() {
+		return this.list.filter((todo) => todo.completed)
+	}
+	get listView() {
+		return currentPath.to((path) =>
+			path === 'all' ? this.list :
+			path === 'completed' ? this.completedView :
+			path === 'active' ?  this.activeView :
+				this.list);
+	}
+	get todoCount() {
+		return this.activeView.to((active) => active.length)
+	}
 }
 
-export default TodoView
-
+// our router
+let currentPath = new Variable(location.hash);
+window.onhashchange = () => {
+	currentPath.put(location.hash.replace(/#\//, ''));
+};

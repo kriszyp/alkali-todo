@@ -2,7 +2,8 @@
   "name": "alkali-todo",
   "version": "0.0.1",
   "scripts": {
-    "build": "webpack"
+    "build": "webpack",
+    "watch": "webpack --watch"
   },
   "devDependencies": {
     "babel-cli": "^6.6.5",
