@@ -1,52 +1,44 @@
+/*
+This module represents the "view model" in MVVM parlance (or an MVC 
+controller that offers "data views"). The data "model" is found in
+the TodoList (although it is little more than a variable that holds
+an array).
+*/
 import Variable from 'alkali/Variable';
+import { Item } from 'alkali/Element';
+import TodoList from './TodoList';
 
-TodoList = class extends Variable {
-	completeAll() {
-		this.forEach((todo) => {
-			if (!todo.completed) {
-				todo.completed = true;
-				this.updated(todo);
-			}
-		});
-	}
-}
-export default class Todo extends Variable {
-	constructor() {
-		this.list = TodoList.for(this)
-	}
-	add() {
-		this.push({ // add a new todo
-			name: this.get('newItem')
-		});
-		this.set('newItem', '') // clear out the input
-	}
-	completeAll() {
-		this.list.completeAll()
-	}
-
-	delete(todo) {
-		this.list.splice(this.list.indexOf(todo), 1);
-	}
-	get activeView() {
-		return this.list.filter((todo) => !todo.completed)
-	}
-	get completedView() {
-		return this.list.filter((todo) => todo.completed)
-	}
-	get listView() {
-		return currentPath.to((path) =>
-			path === 'all' ? this.list :
-			path === 'completed' ? this.completedView :
-			path === 'active' ?  this.activeView :
-				this.list);
-	}
-	get todoCount() {
-		return this.activeView.to((active) => active.length)
-	}
-}
-
-// our router
+// our router, expressed as a variable
 let currentPath = new Variable(location.hash);
 window.onhashchange = () => {
 	currentPath.put(location.hash.replace(/#\//, ''));
 };
+
+
+let ActiveView, CompletedView
+// the main view model
+export default Variable.extend({
+	add() {
+		// add a new todo
+		TodoList.for(this).push({
+			name: this.get('newItem')
+		});
+		// clear out the input
+		this.set('newItem', '');
+	},
+	completeAll: TodoList.completeAll,
+	delete(event) {
+		// delete a todo
+		TodoList.for(this).delete(Item.for(event).valueOf())
+	},
+	// our three data "views" of the different filtered todo lists
+	activeView: ActiveView = TodoList.filter((todo) => !todo.completed),
+	completedView: CompletedView = TodoList.filter((todo) => todo.completed),
+	listView: currentPath.to((path) =>
+		path === 'all' ? TodoList :
+		path === 'completed' ? CompletedView :
+		path === 'active' ?  ActiveView :
+			TodoList),
+	todoCount: ActiveView.to((active) => active.length)
+})
+

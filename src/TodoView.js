@@ -1,6 +1,9 @@
+/*
+This is the main "view" component that renders the todos as DOM elements,
+using the Alkali DOM constructors in declarative style
+*/
 import { Div, Section, Span, A, Header, H1, Form, Footer, Label, UL, LI, Button, Input, Checkbox, Item } from 'alkali/Element'
-import TodoModel from './Todo'
-let todoModel = new TodoModel([{name: 'first one'}])
+import Todo from './Todo'
 
 let LabelView = Label('.view', [Item.property('name')], {
 	textDecoration: Item.property('completed').to((completed) => completed ? 'line-through' : 'none'),
@@ -17,33 +20,33 @@ class TodoView extends Div({id: 'todo'}, [
 				Input({
 					autofocus: true,
 					placeholder: 'What needs to be done?',
-					value: TodoModel.property('newItem')
+					value: Todo.property('newItem')
 				})
 			], {
 				onsubmit(event) {
 					event.preventDefault()
-					TodoModel.for(this).add()
+					Todo.for(this).add()
 				}
 			})
 		]),
 		Section('.main', [
 			Checkbox('#toggle-all', {
-				onchange() { TodoModel.for(this).completeAll() }
+				onchange: Todo.completeAll
 			}),
 			Label,
 			UL('#todo-list', {
-				content: todoModel.todoView,
+				content: Todo.listView,
 				each: LI('.task', [
 					Checkbox('.toggle', Item.property('completed')),
 					LabelView,
 					Button('.destroy', {
-						onclick { todoModel.delete(Item.for(this)) }
+						onclick: Todo.delete
 					})
 				])
 			})
 		]),
 		Footer([
-			Span(todoModel.todoCount.to((count) => count + (count > 1 ? ' items left' : ' item left'))),
+			Span(Todo.todoCount.to((count) => count + (count > 1 ? ' items left' : ' item left'))),
 			UL('#filters', [
 				LI, [
 					A({href: '#/all'}, [
