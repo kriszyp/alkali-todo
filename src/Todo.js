@@ -9,7 +9,7 @@ import { Item } from 'alkali/Element';
 import TodoList from './TodoList';
 
 // our router, expressed as a variable
-let currentPath = new Variable(location.hash);
+let currentPath = new Variable(location.hash.replace(/#\//, ''));
 window.onhashchange = () => {
 	currentPath.put(location.hash.replace(/#\//, ''));
 };
