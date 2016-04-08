@@ -26,7 +26,18 @@ export default Variable.extend({
 		// clear out the input
 		this.set('newItem', '');
 	},
-	completeAll: TodoList.completeAll,
+	// delegate this to the list data model
+	clearCompleted: TodoList.clearCompleted,
+	allCompleted:
+		// the checkbox corresponds to the state of the todos
+		TodoList.to((todos) =>
+			todos.length && todos.every((todo) => todo.completed))
+		.setReverse( // and define the reverse action when the checkbox changes
+			(allCompleted) =>
+				TodoList.forEach((todo) => {
+					todo.completed = allCompleted
+					TodoList.updated(todo);
+				})),
 	delete(event) {
 		// delete a todo
 		TodoList.for(this).delete(Item.for(event).valueOf())
@@ -35,6 +46,7 @@ export default Variable.extend({
 	activeView: ActiveView = TodoList.filter((todo) => !todo.completed),
 	completedView: CompletedView = TodoList.filter((todo) => todo.completed),
 	listView: currentPath.to((path) =>
+		// determine which view to show based on the current hash path
 		path === 'all' ? TodoList :
 		path === 'completed' ? CompletedView :
 		path === 'active' ?  ActiveView :
