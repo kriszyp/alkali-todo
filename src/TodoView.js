@@ -21,7 +21,7 @@ class TodoView extends Div('#todo', [
 				Input('#new-todo', {
 					autofocus: true,
 					placeholder: 'What needs to be done?',
-					// we can variables for any property; when use a variable in a user-input
+					// we can variables for any property; when we use a variable in a user-input
 					// driven property, the binding is bi-directional
 					value: Todo.property('newItem')
 				})
@@ -70,7 +70,7 @@ class TodoView extends Div('#todo', [
 			}),
 			UL('#filters', [
 				LI, [
-					A({href: '#/all'}, [
+					A({href: '#/'}, [
 						'All '
 					])
 				],

@@ -50,7 +50,7 @@
 
 	var _TodoList2 = _interopRequireDefault(_TodoList);
 
-	var _TodoView = __webpack_require__(5);
+	var _TodoView = __webpack_require__(4);
 
 	var _TodoView2 = _interopRequireDefault(_TodoView);
 
@@ -81,7 +81,8 @@
 		clearCompleted: function clearCompleted() {
 			var _this = this;
 
-			this.forEach(function (todo) {
+			// make a copy of the array first, because it changes while we modify it
+			this.valueOf().slice(0).forEach(function (todo) {
 				if (todo.completed) {
 					_this.delete(todo);
 				}
@@ -103,7 +104,14 @@
 /* 2 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(3), __webpack_require__(4)], __WEBPACK_AMD_DEFINE_RESULT__ = function(lang, Context) {
+	var __WEBPACK_AMD_DEFINE_FACTORY__, __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;(function (root, factory) { if (true) {
+	        !(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(3)], __WEBPACK_AMD_DEFINE_FACTORY__ = (factory), __WEBPACK_AMD_DEFINE_RESULT__ = (typeof __WEBPACK_AMD_DEFINE_FACTORY__ === 'function' ? (__WEBPACK_AMD_DEFINE_FACTORY__.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__)) : __WEBPACK_AMD_DEFINE_FACTORY__), __WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__))
+	    } else if (typeof module === 'object' && module.exports) {
+	        module.exports = factory(require('./util/lang'))
+	    } else {
+	        root.alkali.Variable = factory(root.alkali.lang)
+	    }
+	}(this, function (lang) {
 		var deny = {}
 		var noChange = {}
 		var WeakMap = lang.WeakMap
@@ -128,6 +136,57 @@
 			}
 		})
 		var listenerId = 1
+
+		function mergeSubject(context) {
+			for (var i = 1, l = arguments.length; i < l; i++) {
+				var nextContext = arguments[i]
+				if (nextContext !== context && (!context || nextContext && context.contains && context.contains(nextContext))) {
+					context = nextContext
+				}
+			}
+			return context
+		}
+
+		function getDistinctContextualized(variable, context) {
+			var subject = context && (context.distinctSubject || context.subject)
+			if (typeof variable === 'function') {
+				return variable.for(subject)
+			}
+			var contextMap = variable.contextMap
+			if (context && contextMap) {
+				while(subject && !contextMap.has(subject)) {
+					subject = subject.parentNode
+				}
+				if (!subject) {
+					subject = defaultContext
+				}
+				return contextMap.get(subject)
+			}
+		}
+		function when(value, callback) {
+			if (value && value.then) {
+				return value.then(callback)
+			}
+			return callback(value)
+		}
+
+		function Context(subject){
+			this.subject = subject
+		}
+		function whenAll(inputs, callback){
+			var promiseInvolved
+			var needsContext
+			for (var i = 0, l = inputs.length; i < l; i++) {
+				if (inputs[i] && inputs[i].then) {
+					promiseInvolved = true
+				}
+			}
+			if (promiseInvolved) {
+				return lang.whenAll(inputs, callback)
+			}
+			return callback(inputs)
+		}
+
 		function registerListener(value, listener) {
 			var listeners = propertyListenersMap.get(value)
 			var id = listener.listenerId || (listener.listenerId = ('-' + listenerId++))
@@ -153,14 +212,6 @@
 				}
 			}
 		}
-		function contextFromCache(cache) {
-			var context = new Context()
-			do{
-				context[cache.propertyName] = cache.key
-				cache = cache.parent
-			}while(cache)
-			return context
-		}
 
 		function PropertyChange(key, object, childEvent) {
 			this.key = key
@@ -180,6 +231,10 @@
 		Variable.prototype = {
 			constructor: Variable,
 			valueOf: function(context) {
+				if (this.subject) {
+					var variable = this
+					context = new Context(this.subject)
+				}
 				return this.gotValue(this.getValue(context), context)
 			},
 			getValue: function() {
@@ -189,15 +244,14 @@
 				var previousNotifyingValue = this.notifyingValue
 				var variable = this
 				if (value && value.then) {
-					var variable = this
-					return value.then(function(value) {
+					return when(value, function(value) {
 						return Variable.prototype.gotValue.call(variable, value, context)
 					})
 				}
 				if (previousNotifyingValue) {
 					if (value === previousNotifyingValue) {
 						// nothing changed, immediately return valueOf
-						return value.valueOf(context)
+						return value.valueOf()
 					}
 					// if there was a another value that we were dependent on before, stop listening to it
 					// TODO: we may want to consider doing cleanup after the next rendering turn
@@ -214,16 +268,16 @@
 					variable.notifyingValue = value
 					value = value.valueOf(context)
 				}
-				if (typeof value === 'object' && value && variable.dependents) {
+				if (typeof value === 'object' && value && (this.dependents || this.constructor.dependents)) {
 					// set up the listeners tracking
-					registerListener(value, variable)
+					registerListener(value, this)
 				}
 				if (value === undefined) {
 					value = variable.default
 				}
 				return value
 			},
-			isMap: function(){
+			isMap: function() {
 				return this.value instanceof Map
 			},
 			property: function(key) {
@@ -241,17 +295,17 @@
 				}
 				return propertyVariable
 			},
-			for: function(context) {
-				if (context && context.target && !context.get) {
+			for: function(subject) {
+				if (subject && subject.target && !subject.getForClass) {
 					// makes HTML events work
-					context = context.target
+					subject = subject.target
 				}
 				if (typeof this === 'function') {
-					// this is a class, the context should hopefully have an entry
-					if (context) {
-						var instance = context.get(this)
-						if (instance && !instance.context) {
-							instance.context = context
+					// this is a class, the subject should hopefully have an entry
+					if (subject) {
+						var instance = subject.getForClass(this)
+						if (instance && !instance.subject) {
+							instance.subject = subject
 						}
 						// TODO: Do we have a global context that we set on defaultInstance?
 						return instance || this.defaultInstance
@@ -259,14 +313,26 @@
 						return this.defaultInstance
 					}
 				}
-				return context ? new ContextualizedVariable(this, context) : this
+				return new ContextualizedVariable(this, subject || defaultContext)
+			},
+			distinctFor: function(subject) {
+				if (typeof this === 'function') {
+					return this.for(subject)
+				}
+				var map = this.contextMap || (this.contextMap = new WeakMap())
+				if (map.has(subject)) {
+					return map.get(subject)
+				}
+				var contextualizedVariable
+				map.set(subject, contextualizedVariable = new ContextualizedVariable(this, subject))
+				return contextualizedVariable
 			},
 			_propertyChange: function(propertyName, object, context, type) {
-				context = context && this.getKeyContext(context)
 				if (this.onPropertyChange) {
 					this.onPropertyChange(propertyName, object, context)
 				}
-				var property = this._properties && this._properties[propertyName]
+				var properties = this._properties
+				var property = properties && (properties instanceof Map ? properties.get(propertyName) : properties[propertyName])
 				if (property && !(type instanceof PropertyChange) && object === this.valueOf(context)) {
 					property.parentUpdated(ToChild, context)
 				}
@@ -289,7 +355,7 @@
 				}
 			},
 			init: function() {
-				if (this.context) {
+				if (this.subject) {
 					this.constructor.notifies(this)
 				}
 				var variable = this
@@ -331,6 +397,10 @@
 				return Math.max(this.version || 0, this.notifyingValue && this.notifyingValue.getVersion ? this.notifyingValue.getVersion(context) : 0)
 			},
 
+			getSubject: function(selectVariable) {
+				return this.subject
+			},
+
 			getUpdates: function(since) {
 				var updates = []
 				var nextUpdateMap = this.nextUpdateMap
@@ -347,15 +417,15 @@
 			},
 
 			updated: function(updateEvent, by, context) {
-				if (this.context) {
+				if (this.subject) {
 					if (by === this.constructor) {
 						// if we receive an update from the constructor, filter it
-						if (!(!context || context === this.context || (context.contains && this.context.nodeType && context.contains(this.context)))) {
+						if (!(!context || context.subject === this.subject || (context.subject.contains && this.subject.nodeType && context.subject.contains(this.subject)))) {
 							return
 						}
 					} else {
 						// if we receive an outside update, send it to the constructor
-						return this.constructor.updated(updateEvent, by, this.context)
+						return this.constructor.updated(updateEvent, this, new Context(this.subject))
 					}
 				}
 				if (this.lastUpdate) {
@@ -381,7 +451,9 @@
 						try{
 							var dependent = dependents[i]
 							// skip notifying property dependents if we are headed up the parent chain
-							if (!(updateEvent instanceof PropertyChange) || dependent.parent !== this) {
+							if (!(updateEvent instanceof PropertyChange) ||
+									dependent.parent !== this || // if it is not a child property
+									(by && by.constructor === this)) { // if it is coming from a child context
 								if (dependent.parent === this) {
 									dependent.parentUpdated(ToChild, context)
 								} else {
@@ -393,10 +465,6 @@
 						}
 					}
 				}
-			},
-
-			getKeyContext: function(context) {
-				return context
 			},
 
 			invalidate: function() {
@@ -469,39 +537,43 @@
 				}
 			},
 			put: function(value, context) {
-				var oldValue = this.getValue(context)
-				if (oldValue === value) {
-					return noChange
-				}
-				if (this.fixed &&
-						// if it is set to fixed, we see we can put in the current variable
-						oldValue && oldValue.put && // if we currently have a variable
-						// and it is always fixed, or not a new variable
-						(this.fixed == 'always' || !(value && value.notifies))) {
-					return oldValue.put(value, context)
-				}
-				this.setValue(value, context)
-				this.updated(Refresh, this, context)
+				var variable = this
+				
+				return when(this.getValue(context), function(oldValue) {
+					if (oldValue === value) {
+						return noChange
+					}
+					if (variable.fixed &&
+							// if it is set to fixed, we see we can put in the current variable
+							oldValue && oldValue.put && // if we currently have a variable
+							// and it is always fixed, or not a new variable
+							(variable.fixed == 'always' || !(value && value.notifies))) {
+						return oldValue.put(value)
+					}
+					return when(variable.setValue(value, context), function(value) {
+						variable.updated(Refresh, variable, context)
+					})
+				})
 			},
-			get: function(key, context) {
-				if (typeof key === 'function') {
-					return getForClass.call(this, key)
-				}
-				var object = this.valueOf(context)
-				var value = object && (typeof object.get === 'function' ? object.get(key) : object[key])
-				if (value && value.notifies) {
-					// nested variable situation, get underlying value
-					return value.valueOf()
-				}
-				return value
+			get: function(key) {
+				return when(this.valueOf(), function(object) {
+					var value = object && (typeof object.get === 'function' ? object.get(key) : object[key])
+					if (value && value.notifies) {
+						// nested variable situation, get underlying value
+						return value.valueOf()
+					}
+					return value
+				})
 			},
-			set: function(key, value, context) {
+			set: function(key, value) {
 				// TODO: create an optimized route when the property doesn't exist yet
-				this.property(key).put(value, context)
+				this.property(key).put(value)
 			},
 			undefine: function(key, context) {
 				this.set(key, undefined, context)
 			},
+			getForClass: getForClass,
+
 			next: function(value) {
 				// for ES7 observable compatibility
 				this.put(value)
@@ -539,7 +611,7 @@
 			},
 			forEach: function(callback, context) {
 				// iterate through current value of variable
-				return lang.when(this.valueOf(context), function(value) {
+				return when(this.valueOf(), function(value) {
 					if (value && value.forEach) {
 						value.forEach(callback)
 					}else{
@@ -596,6 +668,7 @@
 				return this.valueOf()[Symbol.iterator]()
 			}
 		}
+		var cacheNotFound = {}
 		var Caching = Variable.Caching = lang.compose(Variable, function(getValue, setValue) {
 			if (getValue) {
 				this.getValue = getValue
@@ -604,121 +677,50 @@
 				this.setValue = setValue
 			}
 		}, {
-			getCache: function(context) {
-				if (this.contextMap && context) {
-					return this.contextMap.get(context)
-				}
-				return this.cache || (this.cache = {})
-
-				var cache = this.cache || (this.cache = new CacheEntry())
-				while(cache.getNextKey) {
-					var propertyName = cache.propertyName
-					var keyValue = context.get(propertyName)
-					// TODO: handle the case of a primitive
-					var nextCache = cache.get(keyValue)
-					if (!nextCache) {
-						nextCache = new CacheEntry()
-						cache.set(keyValue, nextCache)
-						nextCache.key = keyValue
-					}
-					cache = nextCache
-				}
-				return cache
-			},
-
-			valueOf: function(context, cacheHolder) {
+			valueOf: function(context) {
 				// first check to see if we have the variable already computed
-				var cache = this.getCache(context)
-				if (cache && 'value' in cache) {
-					if (cacheHolder && cacheHolder instanceof GetCache) {
-						cacheHolder.cache = cache
-					}
-					if (cache.version === this.getVersion(context)) {
-						return cache.value
+				if (this.cachedVersion === this.getVersion()) {
+					if (this.contextMap) {
+						var contextualizedVariable = getDistinctContextualized(this, context)
+						if (contextualizedVariable) {
+							return contextualizedVariable.cachedValue
+						}
+					} else {
+						return this.cachedValue
 					}
 				}
 				
-				var watchedContext = context && {
-					get: function(propertyName, select) {
-						var keyValue = context.get(propertyName, select)
-						var contextMap = variable.contextMap || (variable.contextMap = new WeakMap())
-						contextMap.set(context, cache = {})
-						return keyValue
-
-						// TODO: fix this
-						// determine if we have already keyed of this value
-						if (cache.propertyName !== propertyName) {
-							// TODO: check it against all previous property names
-							if (!cache.propertyName) {
-								cache.propertyName = propertyName
-							}
-							var nextCache = cache.get(keyValue)
-							if (!nextCache) {
-								nextCache = new CacheEntry()
-								cache.set(keyValue, nextCache)
-								nextCache.parent = cache
-								nextCache.key = keyValue
-								nextCache.propertyName = propertyName
-							}
-							cache = nextCache
-						}
-						return keyValue
-					}
-				}
 				var variable = this
 
 				function withComputedValue(computedValue) {
-					if (computedValue && computedValue.notifies && this.dependents) {
-						if (variable.computedVariable && variable.computedVariable !== computedValue) {
-							throw new Error('Can pass in a different variable for a different context as the result of a single variable')
-						}
+					if (computedValue && computedValue.notifies && variable.dependents) {
 						variable.computedVariable = computedValue
 					}
 					computedValue = variable.gotValue(computedValue, watchedContext)
-					if (computedValue && typeof computedValue === 'object' &&
-							variable._properties && variable.dependents) {
-
-						cache.variable = variable
+					var contextualizedVariable
+					if (watchedContext && watchedContext.distinctSubject) {
+						(variable.contextMap || (variable.contextMap = new WeakMap()))
+							.set(watchedContext.distinctSubject,
+								contextualizedVariable = new ContextualizedVariable(variable, watchedContext.distinctSubject))
+						context.distinctSubject = mergeSubject(context.distinctSubject, watchedContext.distinctSubject)
+					} else {
+						contextualizedVariable = variable
 					}
-					cache.value = computedValue
-					cache.version = variable.getVersion()
-					if (cacheHolder && cacheHolder instanceof GetCache) {
-						cacheHolder.cache = cache
-					}
+					contextualizedVariable.cachedVersion = variable.getVersion()
+					contextualizedVariable.cachedValue = computedValue
 					return computedValue
 				}
 
+				var watchedContext
+				if (context) {
+					watchedContext = new Context(context.subject)
+				}
 				var computedValue = this.getValue(watchedContext)
 				if (computedValue && computedValue.then) {
 					return computedValue.then(withComputedValue)
 				} else {
 					return withComputedValue(computedValue)
 				}
-
-			},
-
-			getValue: function() {
-				return this.value && this.value.valueOf()
-			},
-			updated: function(updateEvent, by, context) {
-				// TODO: there might actually be a collection of listeners
-				// clear the cache
-				if (context) {
-					// just based on the context
-					var cache = this.getCache(context)
-					// deregisterListener(cache.value, cache)
-					if (cache) {
-						delete cache.value
-					}
-				}else{
-					// delete our local cache if it is an unconstrained invalidation
-					// deregisterListener(this.cache.value, this.cache)
-					this.cache = {}
-				}
-				if (this.computedVariable) {
-					this.computedVariable = null
-				}
-				Variable.prototype.updated.call(this, updateEvent, by, context)
 			}
 		})
 
@@ -737,34 +739,27 @@
 			valueOf: function(context) {
 				var key = this.key
 				var property = this
-				var cacheHolder = new GetCache()
-				var object = this.parent.valueOf(context, cacheHolder)
-				function setupListener(object) {
+				var object = this.parent.valueOf(context)
+				function gotValueAndListen(object) {
 					if (property.dependents) {
-						var cache = cacheHolder.cache || object
-						var listeners = cache && propertyListenersMap.get(cache)
+						var listeners = propertyListenersMap.get(object)
 						if (listeners && listeners.observer && listeners.observer.addKey) {
 							listeners.observer.addKey(key)
 						}
 					}
+					var value = property.gotValue(object == null ? undefined : typeof object.get === 'function' ? object.get(key) : object[key])
+					return value
 				}
 				if (object && object.then) {
-					return object.then(function(object) {
-						setupListener(object)
-						return property.gotValue(object == null ? undefined : typeof object.get === 'function' ? object.get(key) : object[key], context)
-					})
+					return when(object, gotValueAndListen)
 				}
-				setupListener(object)
-				return this.gotValue(object == null ? undefined : typeof object.get === 'function' ? object.get(key) : object[key], context)
+				return gotValueAndListen(object)
 			},
 			put: function(value, context) {
 				return this._changeValue(context, RequestChange, value)
 			},
 			parentUpdated: function(updateEvent, context) {
 				return Variable.prototype.updated.call(this, updateEvent, this.parent, context)
-			},
-			getKeyContext: function(context) {
-				return this.parent.getKeyContext(context)
 			},
 			updated: function(updateEvent, by, context) {
 				//if (updateEvent !== ToChild) {
@@ -775,10 +770,10 @@
 			_changeValue: function(context, type, newValue) {
 				var key = this.key
 				var parent = this.parent
-				return lang.when(parent.valueOf(context), function(object) {
+				return when(parent.valueOf(context), function(object) {
 					if (object == null) {
 						// nothing there yet, create an object to hold the new property
-						parent.put(object = typeof key == 'number' ? [] : {}, context)
+						var response = parent.put(object = typeof key == 'number' ? [] : {}, context)
 					}else if (typeof object != 'object') {
 						// if the parent is not an object, we can't set anything (that will be retained)
 						return deny
@@ -875,7 +870,7 @@
 					var arg = args[i]
 					results[i] = arg && arg.valueOf(context)
 				}
-				return lang.whenAll(results, function(resolved) {
+				return whenAll(results, function(resolved) {
 					return resolved
 				})
 			}
@@ -910,18 +905,18 @@
 
 			execute: function(context) {
 				var call = this
-				return lang.when(this.functionVariable.valueOf(context), function(functionValue) {
+				return when(this.functionVariable.valueOf(context), function(functionValue) {
 					return call.invoke(functionValue, call.args, context, true)
 				})
 			},
 
 			put: function(value, context) {
 				var call = this
-				return lang.when(this.valueOf(context), function(originalValue) {
+				return when(this.valueOf(context), function(originalValue) {
 					if (originalValue === value) {
 						return noChange
 					}
-					return lang.when(call.functionVariable.valueOf(context), function(functionValue) {
+					return when(call.functionVariable.valueOf(context), function(functionValue) {
 						return call.invoke(function() {
 							if (functionValue.reverse) {
 								functionValue.reverse.call(call, value, call.args, context)
@@ -950,7 +945,7 @@
 						// include the instance in whenAll
 						results.push(instance)
 						// wait for the values to be received
-						return lang.whenAll(results, function(inputs) {
+						return whenAll(results, function(inputs) {
 							if (observeArguments) {
 								var handles = []
 								for (var i = 0, l = inputs.length; i < l; i++) {
@@ -963,7 +958,7 @@
 								try{
 									var result = functionValue.apply(instance, inputs, context)
 								}finally{
-									lang.when(result, function() {
+									when(result, function() {
 										for (var i = 0; i < l; i++) {
 											handles[i].done()
 										}
@@ -984,29 +979,29 @@
 		})
 		Variable.Call = Call
 
-		var ContextualizedVariable = lang.compose(Variable, function ContextualizedVariable(Source, context) {
+		var ContextualizedVariable = lang.compose(Variable, function ContextualizedVariable(Source, subject) {
 			this.constructor = Source
-			this.context = context
+			this.subject = subject
 		}, {
-
 			valueOf: function() {
-				return this.constructor.valueOf(this.context)
+				return this.constructor.valueOf(new Context(this.subject))
 			},
+
 			put: function(value) {
-				return this.constructor.put(value, this.context)
+				return this.constructor.put(value, new Context(this.subject))
 			},
 			parentUpdated: function(event, context) {
 				// if we receive an outside update, send it to the constructor
 				this.constructor.updated(event, this.parent, this.context)
 			}
-
 		})
+
 
 		function arrayMethod(name, sendUpdates) {
 			Variable.prototype[name] = function() {
 				var args = arguments
 				var variable = this
-				return lang.when(this.valueOf(), function(array) {
+				return when(this.cachedValue || this.valueOf(), function(array) {
 					if (!array) {
 						variable.put(array = [])
 					}
@@ -1079,7 +1074,7 @@
 
 		var IterativeMethod = lang.compose(Composite, function(source, method, args) {
 			this.source = source
-			source.interestWithin = true
+			// source.interestWithin = true
 			this.method = method
 			this.args = args
 		}, {
@@ -1087,44 +1082,55 @@
 				var method = this.method
 				var args = this.args
 				var variable = this
-				return lang.when(this.source.valueOf(context), function(array) {
+				return when(this.source.valueOf(context), function(array) {
 					if (variable.dependents) {
+						var map = variable.contextMap || (variable.contextMap = new WeakMap())
+						var contextualizedVariable
+						if (map.has(context.distinctSubject)) {
+							contextualizedVariable = map.get(context.distinctSubject)
+						} else {
+							map.set(context.distinctSubject, contextualizedVariable = new ContextualizedVariable(variable, context.distinctSubject))
+						}
 						array.forEach(function(object) {
-							registerListener(object, variable)
+							registerListener(object, contextualizedVariable)
 						})
 					}
-					return variable.value = array && array[method] && array[method].apply(array, args)
+					if (context) {
+						variable = variable.for(context)
+					}
+					return array && array[method] && array[method].apply(array, args)
 				})
 			},
 			updated: function(event, by, context) {
-				if (by === this) {
+				if (by === this || by && by.constructor === this) {
 					return Composite.prototype.updated.call(this, event, by, context)
 				}
 				var propagatedEvent = event.type === 'refresh' ? event : // always propagate refreshes
-					this[this.method + 'Updated'](event)
+					this[this.method + 'Updated'](event, context)
 				// TODO: make sure we normalize the event structure
 				if (this.dependents && event.oldValue && typeof event.value === 'object') {
 					deregisterListener(event.value, this)
 				}
 				if (this.dependents && event.value && typeof event.value === 'object') {
-					registerListener(event.value, this)
+					registerListener(event.value, getDistinctContextualized(this, context))
 				}
 				if (propagatedEvent) {
 					Composite.prototype.updated.call(this, propagatedEvent, by, context)
 				}
 			},
-			filterUpdated: function(event) {
+			filterUpdated: function(event, context) {
+				var contextualizedVariable = getDistinctContextualized(this, context)
 				if (event.type === 'delete') {
-					var index = this.value.indexOf(event.oldValue)
+					var index = contextualizedVariable.cachedValue.indexOf(event.oldValue)
 					if (index > -1) {
-						this.splice(index, 1)
+						contextualizedVariable.splice(index, 1)
 					}
 				} else if (event.type === 'add') {
 					if ([event.value].filter(this.args[0]).length > 0) {
-						this.push(event.value)
+						contextualizedVariable.push(event.value)
 					}
 				} else if (event.type === 'update') {
-					var index = this.value.indexOf(event.object)
+					var index = contextualizedVariable.cachedValue.indexOf(event.object)
 					var matches = [event.object].filter(this.args[0]).length > 0
 					if (index > -1) {
 						if (matches) {
@@ -1134,11 +1140,11 @@
 								index: index
 							}
 						} else {
-							this.splice(index, 1)
+							contextualizedVariable.splice(index, 1)
 						}
 					}	else {
 						if (matches) {
-							this.push(event.object)
+							contextualizedVariable.push(event.object)
 						}
 						// else nothing mactches
 					}
@@ -1197,7 +1203,7 @@
 				// get the schema, going through target parents until it is found
 				return getSchema(this.target)
 				function getSchema(target) {
-					return lang.when(target.valueOf(context), function(value) {
+					return when(target.valueOf(), function(value, context) {
 						var schema
 						return (value && value._schema) || (target.parent && (schema = target.parent.schema)
 							&& (schema = schema.valueOf()) && schema[target.key])
@@ -1260,7 +1266,15 @@
 			}
 		}
 
-
+		function objectUpdated(object) {
+			// simply notifies any subscribers to an object, that it has changed
+			var listeners = propertyListenersMap.get(object)
+			if (listeners) {
+				for (var i = 0, l = listeners.length; i < l; i++) {
+					listeners[i]._propertyChange(null, object)
+				}
+			}
+		}
 
 		function all(array) {
 			// This is intended to mirror Promise.all. It actually takes
@@ -1278,13 +1292,17 @@
 			ownedClasses.set(Target, createForInstance || function() { return new Target() })
 			return this
 		}
-		function getForClass(Target) {
+		function getForClass(Target, type) {
 			var createInstance = this.constructor.ownedClasses && this.constructor.ownedClasses.get(Target)
 			if (createInstance) {
+				if (type === 'key') {
+					return this
+				}
 				var ownedInstances = this.ownedInstances || (this.ownedInstances = new WeakMap())
 				var instance = ownedInstances.get(Target)
 				if (!instance) {
 					ownedInstances.set(Target, instance = createInstance(this))
+					instance.subject = this
 				}
 				return instance
 			}
@@ -1326,7 +1344,7 @@
 		var defaultContext = {
 			name: 'Default context',
 			description: 'This object is the default context for classes, corresponding to a singleton instance of that class',
-			get: function(Class, type) {
+			getForClass: function(Class, type) {
 				if (type === 'key') {
 					return this
 				}
@@ -1336,18 +1354,23 @@
 				return true // contains everything
 			}
 		}
-		Variable.getValue = function(context) {
+		function instanceForContext(Class, context) {
+			if (!context) {
+				throw new TypeError('Accessing a generalized class without context to resolve to an instance, call for(context) (where context is an element or related variable instance) on your variable first')
+			}
+			var instance = context.subject.getForClass && context.subject.getForClass(Class) || Class.defaultInstance
+			context.distinctSubject = mergeSubject(context.distinctSubject, instance.subject)
+			return instance
+		}
+		Variable.valueOf = function(context) {
 			// contextualized getValue
-			return (context && context.get && context.get(this) || this.defaultInstance).valueOf()
+			return instanceForContext(this, context).valueOf()
 		}
 		Variable.setValue = function(value, context) {
 			// contextualized setValue
-			return (context && context.get && context.get(this) || this.defaultInstance).put(value)
+			return instanceForContext(this, context).put(value)
 		}
 		Variable.generalize = generalizeClass
-		Variable.hasOwn = hasOwn
-		Variable.all = all
-		Variable.observe = observe
 		Variable.call = Function.prototype.call // restore these
 		Variable.apply = Function.prototype.apply
 		Variable.extend = function(properties) {
@@ -1368,33 +1391,40 @@
 				Object.defineProperty(prototype, key, descriptor)
 				Object.defineProperty(ExtendedVariable, key, getGeneralizedDescriptor(descriptor, key, ExtendedVariable))
 			}
+			if (properties && properties.hasOwn) {
+				hasOwn.call(ExtendedVariable, properties.hasOwn)
+			}
 			return ExtendedVariable
-		}
-		Variable.updated = function(updateEvent, by, context) {
-			context = context && this.getKeyContext(context)
-			return Variable.prototype.updated.call(this, updateEvent, by, context)
-		}
-		Variable.getKeyContext = function(context) {
-			return context.get(this, 'key') || context
 		}
 		Object.defineProperty(Variable, 'defaultInstance', {
 			get: function() {
 				return this.hasOwnProperty('_defaultInstance') ?
 					this._defaultInstance : (
 						this._defaultInstance = new this(),
-						this._defaultInstance.context = defaultContext,
+						this._defaultInstance.subject = defaultContext,
 						this._defaultInstance)
 			}
 		})
+		Variable.hasOwn = hasOwn
+		Variable.all = all
+		Variable.objectUpdated = objectUpdated
+		Variable.observe = observe
 
 		return Variable
-	}.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__), __WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__));
+	}));
 
 /***/ },
 /* 3 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_DEFINE_ARRAY__ = [], __WEBPACK_AMD_DEFINE_RESULT__ = function(){
+	var __WEBPACK_AMD_DEFINE_FACTORY__, __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;(function (root, factory) { if (true) {
+	        !(__WEBPACK_AMD_DEFINE_ARRAY__ = [], __WEBPACK_AMD_DEFINE_FACTORY__ = (factory), __WEBPACK_AMD_DEFINE_RESULT__ = (typeof __WEBPACK_AMD_DEFINE_FACTORY__ === 'function' ? (__WEBPACK_AMD_DEFINE_FACTORY__.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__)) : __WEBPACK_AMD_DEFINE_FACTORY__), __WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__))
+	    } else if (typeof module === 'object' && module.exports) {
+	        module.exports = factory()
+	    } else {
+	        root.alkali = {lang: factory()}
+	    }
+	}(this, function () {
 		var getPrototypeOf = Object.getPrototypeOf || (function(base) { return base.__proto__ })
 		var setPrototypeOf = Object.setPrototypeOf || (function(base, proto) { base.__proto__ = proto})
 		var hasFeatures = {
@@ -1770,32 +1800,10 @@
 			}
 		}
 		return lang
-	}.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__), __WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__));
+	}));
 
 /***/ },
 /* 4 */
-/***/ function(module, exports, __webpack_require__) {
-
-	var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_DEFINE_ARRAY__ = [], __WEBPACK_AMD_DEFINE_RESULT__ = function(){
-		// a simple context object class
-		function Context(rule, element){
-			this.rule = rule;
-			if(element){
-				this.element = element;
-			}
-		}
-		Context.prototype = {
-			get: function(name, select){
-				var value = this[name];
-				// allow for selecting a more generic value
-				return select ? select(value) : value;
-			}
-		};
-		return Context;
-	}.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__), __WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__));
-
-/***/ },
-/* 5 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -1804,13 +1812,13 @@
 		value: true
 	});
 
-	var _Element = __webpack_require__(6);
+	var _Element = __webpack_require__(5);
 
 	var _Variable2 = __webpack_require__(2);
 
 	var _Variable3 = _interopRequireDefault(_Variable2);
 
-	var _Todo = __webpack_require__(8);
+	var _Todo = __webpack_require__(7);
 
 	var _Todo2 = _interopRequireDefault(_Todo);
 
@@ -1859,7 +1867,7 @@
 	(0, _Element.Section)('#todoapp', [(0, _Element.Header)('#header', [(0, _Element.H1)(['todos']), (0, _Element.Form)([(0, _Element.Input)('#new-todo', {
 		autofocus: true,
 		placeholder: 'What needs to be done?',
-		// we can variables for any property; when use a variable in a user-input
+		// we can variables for any property; when we use a variable in a user-input
 		// driven property, the binding is bi-directional
 		value: _Todo2.default.property('newItem')
 	})], {
@@ -1903,20 +1911,45 @@
 		display: _Todo2.default.todoCount.to(function (count) {
 			return count > 0;
 		})
-	}), (0, _Element.UL)('#filters', [_Element.LI, [(0, _Element.A)({ href: '#/all' }, ['All '])], _Element.LI, [(0, _Element.A)({ href: '#/active' }, ['Active '])], _Element.LI, [(0, _Element.A)({ href: '#/completed' }, ['Completed'])]]), (0, _Element.Button)('#clear-completed', 'Clear completed', {
+	}), (0, _Element.UL)('#filters', [_Element.LI, [(0, _Element.A)({ href: '#/' }, ['All '])], _Element.LI, [(0, _Element.A)({ href: '#/active' }, ['Active '])], _Element.LI, [(0, _Element.A)({ href: '#/completed' }, ['Completed'])]]), (0, _Element.Button)('#clear-completed', 'Clear completed', {
 		onclick: _Todo2.default.clearCompleted
 	})])]), (0, _Element.Footer)('#info', [(0, _Element.P)('', 'Double-click to edit a todo')])]));
 
 	exports.default = TodoView;
 
 /***/ },
-/* 6 */
+/* 5 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(2), __webpack_require__(7), __webpack_require__(3), __webpack_require__(4)], __WEBPACK_AMD_DEFINE_RESULT__ = function (Variable, Updater, lang, Context) {
+	var __WEBPACK_AMD_DEFINE_FACTORY__, __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;(function (root, factory) { if (true) {
+	        !(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(2), __webpack_require__(6), __webpack_require__(3)], __WEBPACK_AMD_DEFINE_FACTORY__ = (factory), __WEBPACK_AMD_DEFINE_RESULT__ = (typeof __WEBPACK_AMD_DEFINE_FACTORY__ === 'function' ? (__WEBPACK_AMD_DEFINE_FACTORY__.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__)) : __WEBPACK_AMD_DEFINE_FACTORY__), __WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__))
+	    } else if (typeof module === 'object' && module.exports) {
+	        module.exports = factory(require('./util/lang'), require('./Variable'), require('./Updater'))
+	    } else {
+	        root.alkali.Variable = factory(root.alkali.lang, root.alkali.Variable, root.alkali.Updater)
+	    }
+	}(this, function (Variable, Updater, lang) {
 		var knownElementProperties = {
 		}
-		var PropertyUpdater = Updater.PropertyUpdater
+
+		function Context(subject){
+			this.subject = subject
+		}
+
+		var PropertyUpdater = lang.compose(Updater.PropertyUpdater, function PropertyUpdater() {
+			Updater.PropertyUpdater.apply(this, arguments)
+		}, {
+			renderUpdate: function(newValue, element) {
+				// TODO: cache or otherwise optimize this
+				var rendererName = 'render' + this.name[0].toUpperCase() + this.name.slice(1)
+				if (element[rendererName]) {
+					// custom renderer
+					element[rendererName](newValue)
+				} else {
+					element[this.name] = newValue
+				}
+			}
+		})
 		var StyleUpdater = lang.compose(Updater.StyleUpdater, function StyleUpdater() {
 			Updater.StyleUpdater.apply(this, arguments)
 		}, {
@@ -1925,6 +1958,7 @@
 				element.style[this.name] = definition ? definition(newValue) : newValue
 			}
 		})
+		// TODO: check for renderContent with text updater
 		var TextUpdater = Updater.TextUpdater
 		var ListUpdater = Updater.ListUpdater
 		;['href', 'title', 'role', 'id', 'className'].forEach(function (name) {
@@ -2071,7 +2105,8 @@
 			return childNode
 		}
 		function variableAsText(parent, variable) {
-			var childNode = document.createTextNode(variable.valueOf(parent))
+			var text = variable.valueOf(new Context(parent))
+			var childNode = document.createTextNode(text)
 			enterUpdater(TextUpdater, {
 				element: parent,
 				textNode: childNode,
@@ -2177,7 +2212,8 @@
 			} else {
 				// render as string
 				try {
-					var textNode = document.createTextNode(content === undefined ? '' : (content.valueOf(this)))
+					var text = content === undefined ? '' : content.valueOf(new Context(this))
+					var textNode = document.createTextNode(text)
 				} catch (error) {
 					console.error(error.stack)
 					var textNode = document.createTextNode(error)
@@ -2195,7 +2231,7 @@
 
 		function bindChanges(element, variable) {
 			element.addEventListener('change', function (event) {
-				variable.put(element['typedValue' in element ? 'typedValue' : 'value'], element)
+				var result = variable.put(element['typedValue' in element ? 'typedValue' : 'value'], new Context(element))
 			})
 		}
 		function renderInputContent(content) {
@@ -2296,7 +2332,7 @@
 			if (!prototype.renderContent) {
 				prototype.renderContent = renderContent
 				prototype.renderInputContent = renderInputContent
-				prototype.get = getForClass
+				prototype.getForClass = getForClass
 			}
 
 			var i = 0 // for arguments
@@ -2663,7 +2699,7 @@
 			}
 		}
 		function forTarget(target) {
-			return target.get(this)
+			return target.getForClass(this)
 		}
 
 		function hasOwn(From, Target, createInstance) {
@@ -2684,21 +2720,18 @@
 		}
 
 		var globalInstances = {}
-		function getForClass(Target, type) {
+		function getForClass(Target) {
 			var element = this
 			var createInstance
 			while (element && !(createInstance = element.constructor.ownedClasses && element.constructor.ownedClasses.get(Target))) {
 				element = element.parentNode || presumptiveParentMap.get(element)
 			}
 			if (createInstance) {
-				if (type === 'key') {
-					// just need to return the key element
-					return element
-				}
 				var ownedInstances = element.ownedInstances || (element.ownedInstances = new WeakMap())
 				var instance = ownedInstances.get(Target)
 				if (instance === undefined) {
 					ownedInstances.set(Target, instance = createInstance(element))
+					instance.subject = element
 				}
 				return instance
 			}
@@ -2709,17 +2742,14 @@
 			ThisElementVariable = this._Variable
 			if (!ThisElementVariable) {
 				// need our own branded variable class for this element class
-				ThisElementVariable = this._Variable = Variable.extend({
-					hasOwn: {
-						Class: ThisElementVariable,
-						createInstance: function(element) {
-							// when we create the instance, immediately observe it
-							// TODO: we might want to do this in init instead
-							var instance = new ThisElementVariable(element)
-							Variable.observe(element)
-							return instance
-						}
-					}
+				ThisElementVariable = this._Variable = Variable()
+
+				hasOwn(this, ThisElementVariable, function(element) {
+					// when we create the instance, immediately observe it
+					// TODO: we might want to do this in init instead
+					var instance = new ThisElementVariable(element)
+					Variable.observe(element)
+					return instance
 				})
 			}
 			// now actually get the property class
@@ -2813,8 +2843,6 @@
 				childList: true,
 				subtree: true
 			})
-		} else {
-			console.error('Alkali requires MutationObserver API')
 		}
 
 		function augmentBaseElement(Element) {
@@ -2837,21 +2865,64 @@
 			}
 		}
 		return Element
-	}.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__), __WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__))
+	}))
 
 /***/ },
-/* 7 */
+/* 6 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(3)], __WEBPACK_AMD_DEFINE_RESULT__ = function (lang) {
-		var doc = document
+	var __WEBPACK_AMD_DEFINE_FACTORY__, __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;(function (root, factory) { if (true) {
+	        !(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(3)], __WEBPACK_AMD_DEFINE_FACTORY__ = (factory), __WEBPACK_AMD_DEFINE_RESULT__ = (typeof __WEBPACK_AMD_DEFINE_FACTORY__ === 'function' ? (__WEBPACK_AMD_DEFINE_FACTORY__.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__)) : __WEBPACK_AMD_DEFINE_FACTORY__), __WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__))
+	    } else if (typeof module === 'object' && module.exports) {
+	        module.exports = factory(require('./util/lang'))
+	    } else {
+	        root.alkali.Updater = factory(root.alkali.lang)
+	    }
+	}(this, function (lang, Variable) {
+		var doc = typeof document !== 'undefined' && document
 		var invalidatedElements
 		var queued
 		var toRender = []
 		var nextId = 1
 		var requestAnimationFrame = lang.requestAnimationFrame
+
+		function Context(subject){
+			this.subject = subject
+		}
+
 		function Updater(options) {
 			var variable = options.variable
+
+			this.variable = variable
+			this.elements = []
+			if (options) {
+				if (options.selector) {
+					this.selector = options.selector
+				}
+				if (options.elements) {
+					this.elements = options.elements
+					this.element = this.elements[0]
+				}
+				if (options.element) {
+					this.element = options.element
+					this.elements.push(options.element)
+				}
+				for(var i = 0, l = this.elements.length; i < l; i++) {
+					(this.elements[i].alkaliRenderers || (this.elements[i].alkaliRenderers = [])).push(this)
+				}
+				if (options.update) {
+					this.updateRendering = options.update
+				}
+				if (options.shouldRender) {
+					this.shouldRender = options.shouldRender
+				}
+				if (options.renderUpdate) {
+					this.renderUpdate = options.renderUpdate
+				}
+				if (options.alwaysUpdate) {
+					this.alwaysUpdate = options.alwaysUpdate
+				}
+			}
 			if (variable.updated) {
 				// if it has update, we don't need to instantiate a closure
 				variable.notifies(this)
@@ -2869,29 +2940,6 @@
 					updater.updated()
 				})
 			}
-
-			this.variable = variable
-			if (options) {
-				if (options.selector) {
-					this.selector = options.selector
-				}
-				if (options.element) {
-					var element = this.element = options.element;
-					(element.alkaliRenderers || (element.alkaliRenderers = [])).push(this)
-				}
-				if (options.update) {
-					this.updateRendering = options.update
-				}
-				if (options.shouldRender) {
-					this.shouldRender = options.shouldRender
-				}
-				if (options.renderUpdate) {
-					this.renderUpdate = options.renderUpdate
-				}
-				if (options.alwaysUpdate) {
-					this.alwaysUpdate = options.alwaysUpdate
-				}
-			}
 			if(options && options.updateOnStart !== false){
 				this.updateRendering(true)
 			}
@@ -2903,7 +2951,7 @@
 			},
 			updated: function (updateEvent, by, context) {
 				if (!this.invalidated) {
-					if (!context || context == this.element || context.contains(this.element)) {
+					if (!context || this.contextMatches(context)) {
 						// do this only once, until we render again
 						this.invalidated = true
 						var updater = this
@@ -2913,6 +2961,20 @@
 						})
 					}
 				}
+			},
+			contextMatches: function(context) {
+				return true
+				return context == this.elements ||
+					// if context is any element in this.elements - perhaps return only the specific matching elements?
+					(this.elements.indexOf(context) != -1) ||
+				  // (context is an array and any/all elements are contained in this.elements) ||
+					// context contains() any of this.elements
+					(function(elements) {
+						for(var i = 0, l = elements.length; i < l; i++) {
+							if (context.contains(elements[i])) return true
+						}
+						return false
+					})(this.elements)
 			},
 			invalidateElement: function(element) {
 				if(!invalidatedElements){
@@ -2950,40 +3012,41 @@
 		ElementUpdater.prototype.shouldRender = function (element) {
 			return document.body.contains(element)
 		}
+		ElementUpdater.prototype.getSubject = function () {
+			return this.element || this.elements[0]
+		}
 		ElementUpdater.prototype.updateRendering = function (always, element) {
-			element = this.element || element
-			if(!element){
+			var elements = this.elements || (element && [element]) || []
+			if(!elements.length){
 				if(this.selector){
-					var elements = document.querySelectorAll(this.selector)
-					for(var i = 0, l = elements.length; i < l; i++){
-						this.updateRendering(always, elements[i])
-					}
+					elements = document.querySelectorAll(this.selector)
 				}else{
 					throw new Error('No element or selector was provided to the Updater')
 				}
 				return
 			}
-			if(always || this.shouldRender(element)){
-				// it is connected
-				this.updateElement(element)
-			}else{
-				var id = this.getId()
-				var updaters = element.updaters
-				if(!updaters){
-					updaters = element.updaters = []
-					element.className += ' needs-rerendering'
-				}
-				if (!updaters[id]) {
-					updaters[id] = this
+			for(var i = 0, l = elements.length; i < l; i++){
+				if(always || this.shouldRender(elements[i])){
+					// it is connected
+					this.updateElement(elements[i])
+				}else{
+					var id = this.getId()
+					var updaters = elements[i].updatersOnShow
+					if(!updaters){
+						updaters = elements[i].updatersOnShow = []
+						elements[i].className += ' needs-rerendering'
+					}
+					if (!updaters[id]) {
+						updaters[id] = this
+					}
 				}
 			}
 		}
 		ElementUpdater.prototype.addElement = function (element) {
 			if (this.selector) {
-				element.updaters = [this]
+				element.updatersOnShow = [this]
 			} else {
-				// no way of tracking so, we have to keep an array
-				(this.elements = (this.elements || [])).push(element)
+				this.elements.push(element)
 			}
 			// and immediately do an update
 			this.updateElement(element)
@@ -2991,7 +3054,8 @@
 		ElementUpdater.prototype.updateElement = function(element) {
 			this.invalidated = false
 			try {
-				var value = !this.omitValueOf && this.variable.valueOf(element)
+				// TODO: might make something cheaper than for(element) for setting context?
+				var value = !this.omitValueOf && this.variable.valueOf(new Context(element))
 			} catch (error) {
 				element.appendChild(document.createTextNode(error))
 			}
@@ -3100,7 +3164,7 @@
 		ListUpdater.prototype.renderUpdate = function (newValue, element) {
 			var container
 			var each = this.each
-			var thisElement = this.element
+			var thisElement = this.elements[0]
 			var updater = this
 			if (!this.builtList) {
 				this.builtList = true
@@ -3163,9 +3227,9 @@
 				}
 				for (var i = 0, l = elements.length; i < l; i++){
 					var element = elements[i]
-					var updaters = element.updaters
+					var updaters = element.updatersOnShow
 					if(updaters){
-						element.updaters = null
+						element.updatersOnShow = null
 						// remove needs-rerendering class
 						element.className = element.className.replace(/\s?needs\-rerendering\s?/g, '')
 						for (var id in updaters) {
@@ -3200,10 +3264,10 @@
 			}
 		}
 		return Updater
-	}.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__), __WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__));
+	}));
 
 /***/ },
-/* 8 */
+/* 7 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -3216,7 +3280,7 @@
 
 	var _Variable2 = _interopRequireDefault(_Variable);
 
-	var _Element = __webpack_require__(6);
+	var _Element = __webpack_require__(5);
 
 	var _TodoList = __webpack_require__(1);
 
@@ -3259,9 +3323,8 @@
 			});
 		}).setReverse( // and define the reverse action when the checkbox changes
 		function (allCompleted) {
-			return _TodoList2.default.forEach(function (todo) {
-				todo.completed = allCompleted;
-				_TodoList2.default.updated(todo);
+			return _TodoList2.default.defaultInstance.forEach(function (todo) {
+				new _Variable2.default(todo).set('completed', allCompleted);
 			});
 		}),
 		delete: function _delete(event) {
@@ -3279,7 +3342,7 @@
 		listView: currentPath.to(function (path) {
 			return(
 				// determine which view to show based on the current hash path
-				path === 'all' ? _TodoList2.default : path === 'completed' ? CompletedView : path === 'active' ? ActiveView : _TodoList2.default
+				path === '' ? _TodoList2.default : path === 'completed' ? CompletedView : path === 'active' ? ActiveView : _TodoList2.default
 			);
 		}),
 		todoCount: ActiveView.to(function (active) {

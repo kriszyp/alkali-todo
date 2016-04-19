@@ -11,7 +11,8 @@ let TodoList = Variable.extend({
 	// define the default value as an array
 	default: [],
 	clearCompleted() {
-		this.forEach((todo) => {
+		// make a copy of the array first, because it changes while we modify it
+		this.valueOf().slice(0).forEach((todo) => {
 			if (todo.completed) {
 				this.delete(todo)
 			}

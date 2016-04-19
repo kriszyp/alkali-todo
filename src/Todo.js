@@ -34,9 +34,8 @@ export default Variable.extend({
 			todos.length && todos.every((todo) => todo.completed))
 		.setReverse( // and define the reverse action when the checkbox changes
 			(allCompleted) =>
-				TodoList.forEach((todo) => {
-					todo.completed = allCompleted
-					TodoList.updated(todo);
+				TodoList.defaultInstance.forEach((todo) => {
+					new Variable(todo).set('completed', allCompleted)
 				})),
 	delete(event) {
 		// delete a todo
@@ -47,10 +46,9 @@ export default Variable.extend({
 	completedView: CompletedView = TodoList.filter((todo) => todo.completed),
 	listView: currentPath.to((path) =>
 		// determine which view to show based on the current hash path
-		path === 'all' ? TodoList :
+		path === '' ? TodoList :
 		path === 'completed' ? CompletedView :
 		path === 'active' ?  ActiveView :
 			TodoList),
 	todoCount: ActiveView.to((active) => active.length)
 })
-
