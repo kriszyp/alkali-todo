@@ -3303,7 +3303,7 @@
 	var ActiveView = void 0,
 	    CompletedView = void 0;
 	// the main view model
-	exports.default = _Variable2.default.extend({
+	exports.default = (0, _Variable2.default)({
 		add: function add() {
 			// add a new todo
 			_TodoList2.default.for(this).push({

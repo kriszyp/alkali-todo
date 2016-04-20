@@ -17,7 +17,7 @@ window.onhashchange = () => {
 
 let ActiveView, CompletedView
 // the main view model
-export default Variable.extend({
+export default Variable({
 	add() {
 		// add a new todo
 		TodoList.for(this).push({
