@@ -75,7 +75,7 @@
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-	var TodoList = _Variable2.default.extend({
+	var TodoList = (0, _Variable2.default)({
 		// define the default value as an array
 		default: [],
 		clearCompleted: function clearCompleted() {
@@ -706,7 +706,7 @@
 					} else {
 						contextualizedVariable = variable
 					}
-					contextualizedVariable.cachedVersion = variable.getVersion()
+					contextualizedVariable.cachedVersion = newVersion
 					contextualizedVariable.cachedValue = computedValue
 					return computedValue
 				}
@@ -715,6 +715,7 @@
 				if (context) {
 					watchedContext = new Context(context.subject)
 				}
+				var newVersion = this.getVersion()
 				var computedValue = this.getValue(watchedContext)
 				if (computedValue && computedValue.then) {
 					return computedValue.then(withComputedValue)
@@ -1926,7 +1927,7 @@
 	    } else if (typeof module === 'object' && module.exports) {
 	        module.exports = factory(require('./util/lang'), require('./Variable'), require('./Updater'))
 	    } else {
-	        root.alkali.Variable = factory(root.alkali.lang, root.alkali.Variable, root.alkali.Updater)
+	        root.alkali.Element = factory(root.alkali.lang, root.alkali.Variable, root.alkali.Updater)
 	    }
 	}(this, function (Variable, Updater, lang) {
 		var knownElementProperties = {
@@ -2115,9 +2116,9 @@
 			return childNode
 		}
 
-		function applyProperties(element, properties, keys) {
-			for (var i = 0, l = keys.length; i < l; i++) {
-				var key = keys[i]
+		function applyProperties(element, properties) {
+			for (var i = 0, l = properties.length; i < l; i++) {
+				var key = properties[i]
 				var value = properties[key]
 				var styleDefinition = styleDefinitions[key]
 				if (styleDefinition) {
@@ -2177,7 +2178,7 @@
 			return selector
 		}
 
-		function renderContent(content) {
+		function buildContent(content) {
 			var each = this.each
 			if (each && content) {
 				// render as list
@@ -2208,7 +2209,7 @@
 				}
 			} else if (inputs[this.tagName]) {
 				// render into input
-				this.renderInputContent(content)
+				this.buildInputContent(content)
 			} else {
 				// render as string
 				try {
@@ -2230,11 +2231,16 @@
 		}
 
 		function bindChanges(element, variable) {
-			element.addEventListener('change', function (event) {
-				var result = variable.put(element['typedValue' in element ? 'typedValue' : 'value'], new Context(element))
+			lang.nextTurn(function() { // wait for next turn in case inputChanges isn't set yet
+				var inputEvents = element.inputEvents || ['change']
+				for (var i = 0, l = inputEvents.length; i < l; i++) {
+					element.addEventListener(inputEvents[i], function (event) {
+						var result = variable.put(element['typedValue' in element ? 'typedValue' : 'value'], new Context(element))
+					})
+				}
 			})
 		}
-		function renderInputContent(content) {
+		function buildInputContent(content) {
 			if (content && content.notifies) {
 				// a variable, respond to changes
 				enterUpdater(PropertyUpdater, {
@@ -2260,7 +2266,7 @@
 			var prototype = Element.prototype
 			if (value && typeof value === 'object') {
 				if (value instanceof Array) {
-					Element.childrenToRender = value
+					Element.children = value
 				} else if (value.notifies) {
 					prototype.content = value
 				} else {
@@ -2327,12 +2333,12 @@
 				Element.extend = extend
 				Element.for = forTarget
 				Element.property = propertyForElement
-				Element.append = append
 			}
-			if (!prototype.renderContent) {
-				prototype.renderContent = renderContent
-				prototype.renderInputContent = renderInputContent
+			if (!prototype.buildContent) {
+				prototype.buildContent = buildContent
+				prototype.buildInputContent = buildInputContent
 				prototype.getForClass = getForClass
+				prototype.append = append
 			}
 
 			var i = 0 // for arguments
@@ -2437,9 +2443,6 @@
 				// order static properties before variable binding applications, but for now.
 				element._item = selector._item
 			}
-			if (applyOnCreate) {
-				applyProperties(element, applyOnCreate, applyOnCreate)
-			}
 			var childrenToRender
 			for (var l = arguments.length; i < l; i++) {
 				var argument = arguments[i]
@@ -2450,19 +2453,28 @@
 				} else if (typeof argument === 'function' && argument.for) {
 					element.content = argument.for(element)
 				} else {
-					applyProperties(element, argument, Object.keys(argument))
+					for (var key in argument) {
+						if (!(key in applyOnCreate)) {
+							var lastLength = applyOnCreate.length || 0
+							applyOnCreate[lastLength] = key
+							applyOnCreate.length = lastLength + 1
+						}
+						// TODO: do deep merging of styles and classes, but not variables
+						applyOnCreate[key] = argument[key]
+					}
 				}
 			}
+			applyProperties(element, applyOnCreate, applyOnCreate)
 			// TODO: we may want to put these on the instance so it can be overriden
-			if (this.childrenToRender) {
-				layoutChildren(element, this.childrenToRender, element)
+			if (this.children) {
+				layoutChildren(element, this.children, element)
 			}
 			if (childrenToRender) {
 				var contentNode = element.contentNode || element
 				layoutChildren(contentNode, argument, contentNode)
 			}
 			if (element.content) {
-				element.renderContent(element.content)
+				element.buildContent(element.content)
 			}
 			var classes = this.classes
 			if (classes) {
@@ -2632,6 +2644,13 @@
 			'Time',
 			'Url',
 			'Week'])
+
+		var tags = {}
+		function getConstructor(tagName) {
+			return tags[tagName] ||
+				(tags[tagName] =
+					augmentBaseElement(extend.call(document.createElement(tagName.toLowerCase()).constructor, tagName.toLowerCase())))
+		}
 
 		function generate(elements) {
 			elements.forEach(function(elementName) {
@@ -2854,6 +2873,7 @@
 			createdBaseElements.push(Element)
 			return Element
 		}
+		createdBaseElements.push(Element)
 		Element.addToElementPrototypes = function(properties) {
 			var i = 0;
 			for (var key in properties) {
@@ -3276,9 +3296,9 @@
 		value: true
 	});
 
-	var _Variable = __webpack_require__(2);
+	var _Variable2 = __webpack_require__(2);
 
-	var _Variable2 = _interopRequireDefault(_Variable);
+	var _Variable3 = _interopRequireDefault(_Variable2);
 
 	var _Element = __webpack_require__(5);
 
@@ -3288,14 +3308,20 @@
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-	// our router, expressed as a variable
-	var currentPath = new _Variable2.default(location.hash.replace(/#\//, '')); /*
-	                                                                            This module represents the "view model" in MVVM parlance (or an MVC 
-	                                                                            controller that offers "data views"). The data "model" is found in
-	                                                                            the TodoList (although it is little more than a variable that holds
-	                                                                            an array).
-	                                                                            */
+	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
+	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; } /*
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               This module represents the "view model" in MVVM parlance (or an MVC 
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               controller that offers "data views"). The data "model" is found in
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               the TodoList (although it is little more than a variable that holds
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               an array).
+	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               */
+
+
+	// our router, expressed as a variable
+	var currentPath = new _Variable3.default(location.hash.replace(/#\//, ''));
 	window.onhashchange = function () {
 		currentPath.put(location.hash.replace(/#\//, ''));
 	};
@@ -3303,7 +3329,18 @@
 	var ActiveView = void 0,
 	    CompletedView = void 0;
 	// the main view model
-	exports.default = (0, _Variable2.default)({
+
+	var Todo = function (_Variable) {
+		_inherits(Todo, _Variable);
+
+		function Todo() {
+			_classCallCheck(this, Todo);
+
+			return _possibleConstructorReturn(this, Object.getPrototypeOf(Todo).apply(this, arguments));
+		}
+
+		return Todo;
+	}((0, _Variable3.default)({
 		add: function add() {
 			// add a new todo
 			_TodoList2.default.for(this).push({
@@ -3324,7 +3361,7 @@
 		}).setReverse( // and define the reverse action when the checkbox changes
 		function (allCompleted) {
 			return _TodoList2.default.defaultInstance.forEach(function (todo) {
-				new _Variable2.default(todo).set('completed', allCompleted);
+				new _Variable3.default(todo).set('completed', allCompleted);
 			});
 		}),
 		delete: function _delete(event) {
@@ -3348,7 +3385,9 @@
 		todoCount: ActiveView.to(function (active) {
 			return active.length;
 		})
-	});
+	}));
+
+	exports.default = Todo;
 
 /***/ }
 /******/ ]);

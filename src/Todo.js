@@ -17,7 +17,7 @@ window.onhashchange = () => {
 
 let ActiveView, CompletedView
 // the main view model
-export default Variable({
+export default class Todo extends Variable({
 	add() {
 		// add a new todo
 		TodoList.for(this).push({
@@ -51,4 +51,5 @@ export default Variable({
 		path === 'active' ?  ActiveView :
 			TodoList),
 	todoCount: ActiveView.to((active) => active.length)
-})
+}) {
+}

@@ -7,7 +7,7 @@ an array of objects
 
 import Variable from 'alkali/Variable';
 
-let TodoList = Variable.extend({
+let TodoList = Variable({
 	// define the default value as an array
 	default: [],
 	clearCompleted() {
@@ -23,5 +23,4 @@ let TodoList = Variable.extend({
 		this.splice(this.valueOf().indexOf(item), 1)
 	}
 })
-
 export default TodoList;
