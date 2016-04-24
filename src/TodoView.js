@@ -11,7 +11,7 @@ class Editing extends Variable {}
 
 // define our main "component", the main todo view of the todo (view) data model.
 // This could easily be a reusable component, although in the case of the TodoMVC
-// CSS, it relies heavily on id-based elements that can really be used multiple times
+// CSS, it relies heavily on id-based elements that can not really be used multiple times
 // The component is defined as a hierarchy of HTML elements
 class TodoView extends Div('#todo', [
 	// we use selector syntax to define ids and class, and arrays to define children
