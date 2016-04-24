@@ -2,10 +2,11 @@
 This is the main "view" component that renders the todos as DOM elements,
 using the Alkali DOM constructors in declarative style
 */
-import { Div, Section, Span, A, P, Header, H1, Form, Footer, Label, UL, LI, Button, Input, Checkbox, Item } from 'alkali/Element'
-import Variable from 'alkali/Variable'
-import Todo from './Todo'
+import { Div, Section, Span, A, P, Header, H1, Form, Footer, Label, UL, LI, Button, Input, Checkbox, Item } from 'alkali/Element';
+import Variable from 'alkali/Variable';
+import Todo from './Todo';
 
+// variable representing the state of editing each row
 class Editing extends Variable {}
 
 // define our main "component", the main todo view of the todo (view) data model.
@@ -53,8 +54,8 @@ class TodoView extends Div('#todo', [
 					Input('.edit', {
 						display: Editing,
 						value: Item.property('name'),
-						onblur() { Editing.for(this).put(false) },
-						onchange() { Editing.for(this).put(false) }
+						onblur() { Editing.for(this).put(false); },
+						onchange() { Editing.for(this).put(false); }
 					}),
 					Button('.destroy', {
 						onclick: Todo.delete
@@ -96,5 +97,4 @@ class TodoView extends Div('#todo', [
 ]) {
 }
 
-export default TodoView
-
+export default TodoView;

@@ -15,7 +15,7 @@ window.onhashchange = () => {
 };
 
 
-let ActiveView, CompletedView
+let ActiveView, CompletedView;
 // the main view model
 export default class Todo extends Variable({
 	add() {
@@ -35,21 +35,20 @@ export default class Todo extends Variable({
 		.setReverse( // and define the reverse action when the checkbox changes
 			(allCompleted) =>
 				TodoList.defaultInstance.forEach((todo) => {
-					new Variable(todo).set('completed', allCompleted)
+					new Variable(todo).set('completed', allCompleted);
 				})),
 	delete(event) {
 		// delete a todo
-		TodoList.for(this).delete(Item.for(event).valueOf())
+		TodoList.for(this).delete(Item.for(event).valueOf());
 	},
 	// our three data "views" of the different filtered todo lists
 	activeView: ActiveView = TodoList.filter((todo) => !todo.completed),
 	completedView: CompletedView = TodoList.filter((todo) => todo.completed),
 	listView: currentPath.to((path) =>
 		// determine which view to show based on the current hash path
-		path === '' ? TodoList :
 		path === 'completed' ? CompletedView :
 		path === 'active' ?  ActiveView :
-			TodoList),
+		TodoList),
 	todoCount: ActiveView.to((active) => active.length)
 }) {
 }

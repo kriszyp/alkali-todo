@@ -14,13 +14,13 @@ let TodoList = Variable({
 		// make a copy of the array first, because it changes while we modify it
 		this.valueOf().slice(0).forEach((todo) => {
 			if (todo.completed) {
-				this.delete(todo)
+				this.delete(todo);
 			}
 		});
 	},
 
 	delete(item) {
-		this.splice(this.valueOf().indexOf(item), 1)
+		this.splice(this.valueOf().indexOf(item), 1);
 	}
 })
 export default TodoList;

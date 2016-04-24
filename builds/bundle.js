@@ -1835,6 +1835,8 @@
 	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               */
 
 
+	// variable representing the state of editing each row
+
 	var Editing = function (_Variable) {
 		_inherits(Editing, _Variable);
 
@@ -3379,7 +3381,7 @@
 		listView: currentPath.to(function (path) {
 			return(
 				// determine which view to show based on the current hash path
-				path === '' ? _TodoList2.default : path === 'completed' ? CompletedView : path === 'active' ? ActiveView : _TodoList2.default
+				path === 'completed' ? CompletedView : path === 'active' ? ActiveView : _TodoList2.default
 			);
 		}),
 		todoCount: ActiveView.to(function (active) {
