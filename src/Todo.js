@@ -4,8 +4,7 @@ controller that offers "data views"). The data "model" is found in
 the TodoList (although it is little more than a variable that holds
 an array).
 */
-import Variable from 'alkali/Variable';
-import { Item } from 'alkali/Element';
+import { Variable, Item } from 'alkali';
 import TodoList from './TodoList';
 
 // our router, expressed as a variable

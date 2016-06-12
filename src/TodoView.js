@@ -2,8 +2,7 @@
 This is the main "view" component that renders the todos as DOM elements,
 using the Alkali DOM constructors in declarative style
 */
-import { Div, Section, Span, A, P, Header, H1, Form, Footer, Label, UL, LI, Button, Input, Checkbox, Item } from 'alkali/Element';
-import Variable from 'alkali/Variable';
+import { Div, Section, Span, A, P, Header, H1, Form, Footer, Label, UL, LI, Button, Input, Checkbox, Item, Variable, options } from 'alkali';
 import Todo from './Todo';
 
 // variable representing the state of editing each row
@@ -24,7 +23,12 @@ class TodoView extends Div('#todo', [
 					placeholder: 'What needs to be done?',
 					// we can variables for any property; when we use a variable in a user-input
 					// driven property, the binding is bi-directional
-					value: Todo.property('newItem')
+					value: Todo.property('newItem'),
+					onkeypress(event) {
+						if (event.which === 13) {
+							Todo.for(this).add()
+						}
+					}
 				})
 			], {
 				onsubmit(event) {
@@ -97,4 +101,5 @@ class TodoView extends Div('#todo', [
 ]) {
 }
 
+options.moveLiveElementsEnabled = false // recommended performance improvement
 export default TodoView;

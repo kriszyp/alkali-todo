@@ -5,7 +5,7 @@ There is not much to this, it is ybasically is a variable that holds
 an array of objects
 */
 
-import Variable from 'alkali/Variable';
+import { Variable } from 'alkali';
 
 let TodoList = Variable({
 	// define the default value as an array
