@@ -1,5 +1,9 @@
 This is the TodoMVC app written with [Alkali](https://github.com/kriszyp/alkali). This is a good example of how to build reactive UI with Alkali and leverage its features. I've included a short walk through to see how this works.
 
+## Performance
+
+Also checkout the [todomvc performance comparison](https://github.com/kriszyp/todomvc-perf-comparison/), to see alkali's speed in handling todomvc.
+
 # Installation
 To run this, do a `bower install`. To recompile, you will need to do an `npm install` too, to install webpack.
 
