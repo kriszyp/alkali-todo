@@ -12,5 +12,6 @@ module.exports = {
                 loader: 'babel-loader'
             }
         ]
-    }
+    },
+    devtool: 'cheap-source-map'
 };

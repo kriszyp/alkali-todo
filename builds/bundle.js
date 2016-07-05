@@ -50,11 +50,11 @@
 
 	var _TodoList2 = _interopRequireDefault(_TodoList);
 
-	var _TodoView = __webpack_require__(9);
+	var _TodoView = __webpack_require__(10);
 
 	var _TodoView2 = _interopRequireDefault(_TodoView);
 
-	var _benchmark = __webpack_require__(11);
+	var _benchmark = __webpack_require__(12);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -103,13 +103,18 @@
 /* 2 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(3), __webpack_require__(4), __webpack_require__(7), __webpack_require__(6), __webpack_require__(8)], __WEBPACK_AMD_DEFINE_RESULT__ = function(Element, Variable, react, Updater, operators) {
+	var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(3), __webpack_require__(4), __webpack_require__(7), __webpack_require__(6), __webpack_require__(8), __webpack_require__(9)], __WEBPACK_AMD_DEFINE_RESULT__ = function(Element, Variable, react, Updater, operators, Copy) {
 		var main = Object.create(Element)
+		main.Copy = Copy
 		main.Element = Element
 		main.Variable = Variable
 		main.all = Variable.all
 		main.react = react
+		main.spawn = function(func) {
+			return react(func).valueOf()
+		}
 		main.Updater = Updater
+		Object.assign(main, Updater)
 		Object.assign(main, operators)
 		return main
 	}.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__), __WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__))
@@ -118,14 +123,7 @@
 /* 3 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var __WEBPACK_AMD_DEFINE_FACTORY__, __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;(function (root, factory) { if (true) {
-					!(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(4), __webpack_require__(6), __webpack_require__(5)], __WEBPACK_AMD_DEFINE_FACTORY__ = (factory), __WEBPACK_AMD_DEFINE_RESULT__ = (typeof __WEBPACK_AMD_DEFINE_FACTORY__ === 'function' ? (__WEBPACK_AMD_DEFINE_FACTORY__.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__)) : __WEBPACK_AMD_DEFINE_FACTORY__), __WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__))
-			} else if (typeof module === 'object' && module.exports) {
-					module.exports = factory(require('./util/lang'), require('./Variable'), require('./Updater'))
-			} else {
-					root.alkali.Element = factory(root.alkali.lang, root.alkali.Variable, root.alkali.Updater)
-			}
-	}(this, function (Variable, Updater, lang) {
+	var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(4), __webpack_require__(6), __webpack_require__(5)], __WEBPACK_AMD_DEFINE_RESULT__ = function (Variable, Updater, lang) {
 		var knownElementProperties = {};
 		['textContent', 'innerHTML', 'title', 'href', 'value', 'valueAsNumber', 'role', 'render'].forEach(function(property) {
 			knownElementProperties[property] = true
@@ -169,7 +167,7 @@
 				var removed = currentClassName && (' ' + currentClassName + ' ').replace(' ' + changingClassName + ' ', ' ')
 				if (newValue) {
 					// addition, add the className
-					changingClassName = currentClassName ? (removed + changingClassName).slice(1) : value;
+					changingClassName = currentClassName ? (removed + changingClassName).slice(1) : changingClassName;
 				} else {
 					// we already have removed the class, just need to trim
 					changingClassName = removed.slice(1, removed.length - 1)
@@ -187,7 +185,15 @@
 		
 		var toAddToElementPrototypes = []
 		var createdBaseElements = []
-		var testStyle = document.createElement('div').style
+		var doc = typeof document !== 'undefined' ? document : {
+			createElement: function(tag) {
+				return {}
+			},
+			addEventListener: function() {
+			}
+		}
+
+		var testStyle = doc.createElement('div').style
 		var childTagForParent = {
 			TABLE: ['tr','td'],
 			TBODY: ['tr','td'],
@@ -230,6 +236,7 @@
 			zoom: directStyle,
 			minZoom: directStyle,
 			maxZoom: directStyle,
+			fontWeight: directStyle,
 			position: booleanStyle(['absolute', '']),
 			textDecoration: booleanStyle(['underline', '']),
 			fontWeight: booleanStyle(['bold', 'normal'])
@@ -237,7 +244,6 @@
 		;["alignContent","alignItems","alignSelf","animation","animationDelay","animationDirection","animationDuration","animationFillMode","animationIterationCount","animationName","animationPlayState","animationTimingFunction","backfaceVisibility","background","backgroundAttachment","backgroundBlendMode","backgroundClip","backgroundColor","backgroundImage","backgroundOrigin","backgroundPosition","backgroundPositionX","backgroundPositionY","backgroundRepeat","backgroundRepeatX","backgroundRepeatY","backgroundSize","baselineShift","border","borderBottom","borderBottomColor","borderBottomLeftRadius","borderBottomRightRadius","borderBottomStyle","borderBottomWidth","borderCollapse","borderColor","borderImage","borderImageOutset","borderImageRepeat","borderImageSlice","borderImageSource","borderImageWidth","borderLeft","borderLeftColor","borderLeftStyle","borderLeftWidth","borderRadius","borderRight","borderRightColor","borderRightStyle","borderRightWidth","borderSpacing","borderStyle","borderTop","borderTopColor","borderTopLeftRadius","borderTopRightRadius","borderTopStyle","borderTopWidth","borderWidth","bottom","boxShadow","boxSizing","bufferedRendering","captionSide","clear","clip","clipPath","clipRule","color","colorInterpolation","colorInterpolationFilters","colorRendering","counterIncrement","counterReset","cursor","direction","display","emptyCells","fill","fillOpacity","fillRule","filter","flex","flexBasis","flexDirection","flexFlow","flexGrow","flexShrink","flexWrap","float","floodColor","floodOpacity","font","fontFamily","fontFeatureSettings","fontKerning","fontSize","fontStretch","fontStyle","fontVariant","fontVariantLigatures","fontWeight","height","imageRendering","isolation","justifyContent","left","letterSpacing","lightingColor","lineHeight","listStyle","listStyleImage","listStylePosition","listStyleType","margin","marginBottom","marginLeft","marginRight","marginTop","marker","markerEnd","markerMid","markerStart","mask","maskType","maxHeight","maxWidth","maxZoom","minHeight","minWidth","minZoom","mixBlendMode","motion","motionOffset","motionPath","motionRotation","objectFit","objectPosition","opacity","order","orientation","orphans","outline","outlineColor","outlineOffset","outlineStyle","outlineWidth","overflow","overflowWrap","overflowX","overflowY","padding","paddingBottom","paddingLeft","paddingRight","paddingTop","page","pageBreakAfter","pageBreakBefore","pageBreakInside","paintOrder","perspective","perspectiveOrigin","pointerEvents","position","quotes","resize","right","shapeImageThreshold","shapeMargin","shapeOutside","shapeRendering","size","speak","src","stopColor","stopOpacity","stroke","strokeDasharray","strokeDashoffset","strokeLinecap","strokeLinejoin","strokeMiterlimit","strokeOpacity","strokeWidth","tabSize","tableLayout","textAlign","textAlignLast","textAnchor","textCombineUpright","textDecoration","textIndent","textOrientation","textOverflow","textRendering","textShadow","textTransform","top","touchAction","transform","transformOrigin","transformStyle","transition","transitionDelay","transitionDuration","transitionProperty","transitionTimingFunction","unicodeBidi","unicodeRange","userZoom","vectorEffect","verticalAlign","visibility","whiteSpace","widows","width","willChange","wordBreak","wordSpacing","wordWrap","writingMode","zIndex","zoom"].forEach(function(property) {
 			styleDefinitions[property] = styleDefinitions[property] || defaultStyle
 		})
-		var doc = document
 		var styleSheet
 		var presumptiveParentMap = new WeakMap()
 
@@ -245,9 +251,9 @@
 		var getPrototypeOf = Object.getPrototypeOf || (function(base) { return base.__proto__ })
 		function createCssRule(selector) {
 			if (!styleSheet) {
-				var styleSheetElement = document.createElement("style")
+				var styleSheetElement = doc.createElement("style")
 				styleSheetElement.setAttribute("type", "text/css")
-	//			styleSheet.appendChild(document.createTextNode(css))
+	//			styleSheet.appendChild(doc.createTextNode(css))
 				document.head.insertBefore(styleSheetElement, document.head.firstChild)
 				styleSheet = styleSheetElement.sheet
 			}
@@ -269,7 +275,7 @@
 		}
 
 		function layoutChildren(parent, children, container, prepend) {
-			var fragment = (children.length > 3 || prepend) ? document.createDocumentFragment() : parent
+			var fragment = (children.length > 3 || prepend) ? doc.createDocumentFragment() : parent
 			for(var i = 0, l = children.length; i < l; i++) {
 				var child = children[i]
 				var childNode
@@ -309,7 +315,7 @@
 					}
 				} else {
 					// a primitive value
-					childNode = document.createTextNode(child)
+					childNode = doc.createTextNode(child)
 					fragment.appendChild(childNode)
 				}
 			}
@@ -324,7 +330,7 @@
 		}
 		function variableAsText(parent, content) {
 			if (content == null) {
-				return document.createTextNode('')
+				return doc.createTextNode('')
 			}
 			var text
 			try {
@@ -332,7 +338,7 @@
 			} catch (error) {
 				text = error.stack
 			}
-			var textNode = document.createTextNode(text)
+			var textNode = doc.createTextNode(text)
 			if (content.notifies) {
 				enterUpdater(TextUpdater, {
 					element: parent,
@@ -350,7 +356,9 @@
 					variable: value,
 					element: element
 				})
-				bindChanges(element, value, key)
+				if (inputs[element.tagName] || element.tagName === 'SELECT') {
+					bindChanges(element, value, key)
+				}
 			} else {
 				element[key] = value
 			}
@@ -360,6 +368,7 @@
 		var propertyHandlers = {
 			content: noop, // content and children have special handling in create
 			children: noop,
+			tagName: noop,
 			each: noop, // just used by content, doesn't need to be recorded on the element
 			classes: function(element, classes) {
 				if (!(classes.length > -1)) {
@@ -531,7 +540,9 @@
 				if (each.create) {
 					var ItemClass = element.itemAs || Item
 					hasOwn(each, ItemClass, function (element) {
-						return new ItemClass(element._item, content)
+						var itemVariable = ItemClass.for(element._item)
+						itemVariable.collection = content
+						return itemVariable
 					})
 				}
 				if (content.notifies) {
@@ -541,7 +552,7 @@
 						element: element
 					})
 				} else {
-					var fragment = document.createDocumentFragment()
+					var fragment = doc.createDocumentFragment()
 					content.forEach(function(item) {
 						if (each.create) {
 							childElement = each.create({parent: element, _item: item}) // TODO: make a faster object here potentially
@@ -567,15 +578,31 @@
 
 		function bindChanges(element, variable, key, conversion) {
 			lang.nextTurn(function() { // wait for next turn in case inputChanges isn't set yet
-				var inputEvents = element.inputEvents || ['change']
+				var inputEvents = element.inputEvents || ['change', 'alkali-change']
 				for (var i = 0, l = inputEvents.length; i < l; i++) {
 					element.addEventListener(inputEvents[i], function (event) {
 						var value = element[key]
 						var result = variable.put(conversion ? conversion(value, element) : value, new Context(element))
+						if (result === Variable.deny) {
+							throw new Error('Variable change denied')
+						}
 					})
 				}
 			})
 		}
+
+		doc.addEventListener('click', function(event) {
+			var target = event.target
+			if (target.type === 'radio') {
+				var radios = document.querySelectorAll('input[type=radio]')
+				for (var i = 0, l = radios.length; i < l; i++) {
+					var radio = radios[i]
+					if (radio.name === target.name && radio !== target) {
+						radio.dispatchEvent(new Event('alkali-change', {}))
+					}
+				}
+			}
+		})
 
 		function conversion(value, element) {
 			if (element.type == 'number') {
@@ -587,7 +614,7 @@
 		function buildInputContent(element, content) {
 			var inputType = element.type
 			var inputProperty = inputType in {date: 1, datetime: 1, time: 1} ?
-					'valueAsDate' : inputType === 'checkbox' ?
+					'valueAsDate' : (inputType === 'checkbox' || inputType === 'radio') ?
 						'checked' : 'value'
 
 			if (content && content.notifies) {
@@ -705,6 +732,7 @@
 		function withProperties(selector, properties) {
 			var Element = makeElementConstructor()
 			Element.superConstructor = this
+			Element.tagName = this.tagName
 			if (this.children) {
 				// just copy this property
 				Element.children = this.children
@@ -777,7 +805,7 @@
 					applyOnCreate = getApplySet(this)
 				}
 			}*/
-			var element = document.createElement(applyOnCreate.tagName)
+			var element = doc.createElement(this.tagName)
 			if (selector && selector.parent) {
 				parent = selector.parent
 			}
@@ -878,13 +906,15 @@
 		}
 
 		function registerTag(tagName) {
-			getApplySet(this).tagName = tagName
-			if (document.registerElement) {
+			this.tagName = tagName
+			if (document.registerElement && this.prototype.constructor === this) {
 				document.registerElement(tagName, this)
 			}
 		}
 
-		var Element = withProperties.call(HTMLElement)
+		var Element = withProperties.call(typeof HTMLElement !== 'undefined' ? HTMLElement : function() {})
+
+		Element.registerTag = registerTag
 
 		Element.within = function(element){
 			// find closest child
@@ -1000,11 +1030,11 @@
 			tagName = tagName.toLowerCase()
 			return tags[tagName] ||
 				(tags[tagName] =
-					setTag(withProperties.call(document.createElement(tagName).constructor), tagName))
+					setTag(withProperties.call(doc.createElement(tagName).constructor), tagName))
 		}
 
 		function setTag(Element, tagName) {
-			Element._applyOnCreate.tagName = tagName
+			Element.tagName = tagName
 			return Element
 		}
 		function generate(elements) {
@@ -1144,7 +1174,7 @@
 					// when we create the instance, immediately observe it
 					// TODO: we might want to do this in init instead
 					var instance = new ThisElementVariable(element)
-					Variable.observe(element)
+					instance.observeObject()
 					return instance
 				})
 			}
@@ -1239,6 +1269,11 @@
 						return true
 					}
 				} else if (node.__alkaliAttached__) {
+					if (document.contains(node)) {
+						// detached event, but it is actually still attached (will get attached in a later mutation record)
+						// so don't get through the detached/attached lifecycle
+						return false
+					}
 					node.__alkaliAttached__ = false
 					state.action(node)
 				}
@@ -1298,21 +1333,14 @@
 		}
 
 		return Element
-	}))
+	}.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__), __WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__))
 
 
 /***/ },
 /* 4 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var __WEBPACK_AMD_DEFINE_FACTORY__, __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;(function (root, factory) { if (true) {
-	        !(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(5)], __WEBPACK_AMD_DEFINE_FACTORY__ = (factory), __WEBPACK_AMD_DEFINE_RESULT__ = (typeof __WEBPACK_AMD_DEFINE_FACTORY__ === 'function' ? (__WEBPACK_AMD_DEFINE_FACTORY__.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__)) : __WEBPACK_AMD_DEFINE_FACTORY__), __WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__))
-	    } else if (typeof module === 'object' && module.exports) {
-	        module.exports = factory(require('./util/lang'))
-	    } else {
-	        root.alkali.Variable = factory(root.alkali.lang)
-	    }
-	}(this, function (lang) {
+	var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(5)], __WEBPACK_AMD_DEFINE_RESULT__ = function (lang) {
 		var deny = {}
 		var noChange = {}
 		var WeakMap = lang.WeakMap
@@ -1321,9 +1349,7 @@
 		// update types
 		var ToParent = 2
 		var RequestChange = 3
-		var Refresh = Object.freeze({
-			type: 'refresh'
-		})
+		
 		var ToChild = Object.freeze({
 			type: 'refresh'
 		})
@@ -1348,7 +1374,7 @@
 			return context
 		}
 
-		function getDistinctContextualized(variable, context) {
+		function getMaterializedContextualInstance(variable, context) {
 			var subject = context && (context.distinctSubject || context.subject)
 			if (typeof variable === 'function') {
 				return variable.for(subject)
@@ -1419,13 +1445,35 @@
 			}
 		}
 
-		function PropertyChange(key, object, childEvent) {
-			this.key = key
-			this.object = object
-			this.childEvent = childEvent
-			this.version = nextId++
+		function RefreshEvent() {
+			this.visited = new Set()
 		}
-		PropertyChange.prototype.type = 'update'
+		RefreshEvent.prototype.type = 'refresh'
+
+		function PropertyChangeEvent(key, childEvent, parent) {
+			this.key = key
+			this.childEvent = childEvent
+			this.parent = parent
+			this.visited = childEvent.visited
+		}
+		PropertyChangeEvent.prototype.type = 'update'
+
+		function AddEvent(args) {
+			this.visited = new Set()
+			for (var key in args) {
+				this[key] = args[key]
+			}
+		}
+		AddEvent.prototype.type = 'add'
+		function DeleteEvent(args) {
+			this.visited = new Set()
+			for (var key in args) {
+				this[key] = args[key]
+			}
+		}
+		DeleteEvent.prototype.type = 'delete'
+
+
 		function Variable(value) {
 			if (this instanceof Variable) {
 				// new call, may eventually use new.target
@@ -1456,18 +1504,8 @@
 				}
 				if (previousNotifyingValue) {
 					if (value === previousNotifyingValue) {
-						// nothing changed, immediately return valueOf
-						var resolvedValue = value.valueOf()
-						if (resolvedValue !== this.listeningToObject) {
-							if (this.listeningToObject) {
-								deregisterListener(this)
-							}
-							if (typeof resolvedValue === 'object' && resolvedValue && (this.dependents || this.constructor.dependents)) {
-								// set up the listeners tracking
-								registerListener(resolvedValue, this)
-							}
-						}
-						return resolvedValue
+						// nothing changed, immediately return valueOf (or ownObject if we have it)
+						return variable.ownObject || value.valueOf(context)
 					}
 					// if there was a another value that we were dependent on before, stop listening to it
 					// TODO: we may want to consider doing cleanup after the next rendering turn
@@ -1483,10 +1521,12 @@
 					}
 					variable.notifyingValue = value
 					value = value.valueOf(context)
-				}
-				if (typeof value === 'object' && value && (this.dependents || this.constructor.dependents)) {
-					// set up the listeners tracking
-					registerListener(value, this)
+					if (variable.ownObject) {
+						if (getPrototypeOf(variable.ownObject) !== value) {
+							setPrototypeOf(variable.ownObject, value)
+						}
+						value = variable.ownObject
+					}
 				}
 				if (value === undefined) {
 					value = variable.default
@@ -1519,9 +1559,25 @@
 				if (typeof this === 'function') {
 					// this is a class, the subject should hopefully have an entry
 					if (subject) {
-						var instance = subject.constructor.getForClass(subject, this)
-						if (instance && !instance.subject) {
-							instance.subject = subject
+						var instance
+						if (subject.constructor.getForClass) {
+							// if the subject has it is own means of retrieving an instance
+							instance = subject.constructor.getForClass(subject, this)
+							if (instance && !instance.subject) {
+								instance.subject = subject
+							}
+						} else {
+							if (subject && typeof subject === 'object') {
+								// a plain object, we use our own map to retrieve the instance (or create one)
+								var instanceMap = this.instanceMap || (this.instanceMap = new WeakMap())
+								instance = instanceMap.get(subject)
+								if (!instance) {
+									instanceMap.set(subject, instance = new this(subject))
+								}
+							} else {
+								// a primitive, just unconditionally create a new variable for it
+								instance = new this(subject)
+							}
 						}
 						// TODO: Do we have a global context that we set on defaultInstance?
 						return instance || this.defaultInstance
@@ -1547,12 +1603,7 @@
 				if (this.onPropertyChange) {
 					this.onPropertyChange(propertyName, object, context)
 				}
-				var properties = this._properties
-				var property = properties && (properties instanceof Map ? properties.get(propertyName) : properties[propertyName])
-				if (property && !(type instanceof PropertyChange) && object === this.valueOf(context)) {
-					property.parentUpdated(ToChild, context)
-				}
-				this.updated(new PropertyChange(propertyName, object, type), null, context)
+				this.updated(new PropertyChangeEvent(propertyName, new RefreshEvent(), this), null, context)
 			},
 			eachKey: function(callback) {
 				for (var i in this._properties) {
@@ -1578,6 +1629,11 @@
 				this.forDependencies(function(dependency) {
 					dependency.notifies(variable)
 				})
+				if (this.listeningToObject === null) {
+					// we were previously listening to an object, but it needs to be restored
+					// calling valueOf will cause the listening object to be restored
+					this.valueOf()
+				}
 			},
 			cleanup: function() {
 				var handles = this.handles
@@ -1587,7 +1643,6 @@
 					}
 				}
 				this.handles = null
-				deregisterListener(this)
 				var notifyingValue = this.notifyingValue
 				if (notifyingValue) {
 					// TODO: move this into the caching class
@@ -1602,7 +1657,7 @@
 				}
 			},
 
-			updateVersion: function() {
+			updateVersion: function(version) {
 				this.version = nextId++
 			},
 
@@ -1619,7 +1674,7 @@
 				var nextUpdateMap = this.nextUpdateMap
 				if (nextUpdateMap && since) {
 					while ((since = nextUpdateMap.get(since))) {
-						if (since === Refresh) {
+						if (since.type === 'refresh') {
 							// if it was refresh, we can clear any prior entries
 							updates = []
 						}
@@ -1630,16 +1685,28 @@
 			},
 
 			updated: function(updateEvent, by, context) {
+				if (!updateEvent) {
+					updateEvent = new RefreshEvent()
+				}
+				if (updateEvent.visited.has(this)){
+					// if this event has already visited this variable, skip it
+					return
+				}
+				updateEvent.visited.add(this)
 				if (this.subject) {
 					if (by === this.constructor) {
 						// if we receive an update from the constructor, filter it
-						if (!(!context || context.subject === this.subject || (context.subject.contains && this.subject.nodeType && context.subject.contains(this.subject)))) {
+						if (!(!context || (context.distinctSubject || context.subject) === this.subject || (context.subject.contains && this.subject.nodeType && context.subject.contains(this.subject)))) {
 							return
 						}
 					} else {
 						// if we receive an outside update, send it to the constructor
 						return this.constructor.updated(updateEvent, this, new Context(this.subject))
 					}
+				}
+				var contextualInstance = getMaterializedContextualInstance(this, context)
+				if (contextualInstance) {
+					contextualInstance.updated(updateEvent, this, context)
 				}
 				if (this.lastUpdate) {
 					var nextUpdateMap = this.nextUpdateMap
@@ -1652,9 +1719,6 @@
 				this.lastUpdate = updateEvent
 				this.updateVersion()
 				var value = this.value
-				if (!(updateEvent instanceof PropertyChange)) {
-					deregisterListener(this)
-				}
 
 				var dependents = this.dependents
 				if (dependents) {
@@ -1663,21 +1727,28 @@
 					for (var i = 0, l = dependents.length; i < l; i++) {
 						try{
 							var dependent = dependents[i]
-							// skip notifying property dependents if we are headed up the parent chain
-							if (!(updateEvent instanceof PropertyChange) ||
-									dependent.parent !== this || // if it is not a child property
-									(by && by.constructor === this)) { // if it is coming from a child context
-								if (dependent.parent === this) {
-									dependent.parentUpdated(ToChild, context)
-								} else {
-									dependent.updated(updateEvent, this, context)
+							if ((updateEvent instanceof PropertyChangeEvent) &&
+									(dependent instanceof Property)) {
+								if (dependent.key === updateEvent.key) {
+									dependent.updated(updateEvent.childEvent, this, context)
 								}
+							} else {
+								dependent.updated(updateEvent, this, context)
 							}
 						}catch(e) {
 							console.error(e, e.stack, 'updating a variable')
 						}
 					}
 				}
+				if (updateEvent instanceof PropertyChangeEvent) {
+					if (this.notifyingValue && this.fixed) {
+						this.notifyingValue.updated(updateEvent, this, context)
+					}
+					if (this.collection) {
+						this.collection.updated(updateEvent, this, context)
+					}
+				}
+				return updateEvent
 			},
 
 			invalidate: function() {
@@ -1688,8 +1759,8 @@
 			notifies: function(target) {
 				var dependents = this.dependents
 				if (!dependents || !this.hasOwnProperty('dependents')) {
-					this.init()
 					this.dependents = dependents = []
+					this.init()
 				}
 				dependents.push(target)
 				var variable = this
@@ -1760,20 +1831,20 @@
 			},
 			put: function(value, context) {
 				var variable = this
-				
+				if (this.ownObject) {
+					this.ownObject = false
+				}			
 				return when(this.getValue(context), function(oldValue) {
 					if (oldValue === value) {
 						return noChange
 					}
 					if (variable.fixed &&
 							// if it is set to fixed, we see we can put in the current variable
-							oldValue && oldValue.put && // if we currently have a variable
-							// and it is always fixed, or not a new variable
-							(variable.fixed == 'always' || !(value && value.notifies))) {
+							oldValue && oldValue.put) {
 						return oldValue.put(value)
 					}
 					return when(variable.setValue(value, context), function(value) {
-						variable.updated(Refresh, variable, context)
+						variable.updated(new RefreshEvent(), variable, context)
 					})
 				})
 			},
@@ -1794,7 +1865,13 @@
 			undefine: function(key, context) {
 				this.set(key, undefined, context)
 			},
-
+			proxy: function(proxiedVariable) {
+				var thisVariable = this
+				this.fixed = true
+				return when(this.setValue(proxiedVariable), function(value) {
+					thisVariable.updated(new RefreshEvent(), thisVariable)
+				})
+			},
 			next: function(value) {
 				// for ES7 observable compatibility
 				this.put(value)
@@ -1830,42 +1907,33 @@
 					})
 				})
 			},
-			forEach: function(callback, context) {
+			forEach: function(callbackOrItemClass, callbackOrContext, context) {
 				// iterate through current value of variable
-				return when(this.valueOf(), function(value) {
+				if (callbackOrItemClass.notifies) {
+					var collectionVariable = this
+					this.forEach(function(item) {
+						var itemVariable = callbackOrItemClass.for(item)
+						itemVariable.collection = collectionVariable
+						callbackOrContext.call(this, itemVariable)
+					}, context)
+				}
+				return when(this.valueOf(callbackOrContext), function(value) {
 					if (value && value.forEach) {
-						value.forEach(callback)
+						value.forEach(callbackOrItemClass)
 					}else{
 						for (var i in value) {
-							callback(value[i], i)
+							callbackOrItemClass.call(value, value[i], i)
 						}
 					}
 				})
 			},
-			each: function(callback) {
-				// returns a new mapped variable
-				// TODO: support events on array (using dstore api)
-				return this.map(function(array) {
-					return array.map(callback)
-				})
-			},
 
-			map: function (operator) {
-				// TODO: eventually make this act on the array items instead
-				var stack = new Error().stack
-				return this.to(function(value) {
-					if (value && value.forEach) {
-						console.warn('Variable `map()` usage with arrays is deprecated, should use `to()` instead at ', stack)
-					}
-					return operator(value)
-				})
-			},
-			to: function (operator) {
+			to: function (transformFunction) {
 				// TODO: create a more efficient map, we don't really need a full variable here
-				if (!operator) {
+				if (!transformFunction) {
 					throw new Error('No function provided to transform')
 				}
-				return new Variable(operator).apply(null, [this])
+				return new Call(transformFunction, [this])
 			},
 			get schema() {
 				// default schema is the constructor
@@ -1904,6 +1972,68 @@
 			},
 			getId: function() {
 				return this.id || (this.id = nextId++)
+			},
+			observeObject: function() {
+				var variable = this
+				return when(this.valueOf(), function(object) {
+					var listeners = propertyListenersMap.get(object)
+					if (!listeners) {
+						propertyListenersMap.set(object, listeners = [])
+					}
+					if (listeners.observerCount) {
+						listeners.observerCount++
+					}else{
+						listeners.observerCount = 1
+						var observer = listeners.observer = lang.observe(object, function(events) {
+							for (var i = 0, l = listeners.length; i < l; i++) {
+								var listener = listeners[i]
+								for (var j = 0, el = events.length; j < el; j++) {
+									var event = events[j]
+									listener._propertyChange(event.name, object)
+								}
+							}
+						})
+						if (observer.addKey) {
+							for (var i = 0, l = listeners.length; i < l; i++) {
+								var listener = listeners[i]
+								listener.eachKey(function(key) {
+									observer.addKey(key)
+								})
+							}
+						}
+					}
+					registerListener(object, variable)
+					return {
+						remove: function() {
+							deregisterListener(object, variable)
+							if (!(--listeners.observerCount)) {
+								listeners.observer.remove()
+							}
+						},
+						done: function() {
+							// deliver changes
+							lang.deliverChanges(observer)
+							this.remove()
+						}
+					}
+				})
+			},
+			_willModify: function(context) {
+				// an intent to modify, so we need to make sure we have our own copy
+				// of an object when necessary
+				if (this.fixed) {
+					if (this.value && this.value._willModify) {
+						return this.value._willModify(context)
+					}
+				}
+				if (!this.ownObject && this.value && this.value.notifies) {
+					var variable = this
+					return when(this.valueOf(context), function(value) {
+						if (value && typeof value === 'object') {
+							variable.ownObject = Object.create(value)
+						}
+					})
+				}
 			}
 		}	
 
@@ -1926,7 +2056,7 @@
 				// first check to see if we have the variable already computed
 				if (this.cachedVersion === this.getVersion()) {
 					if (this.contextMap) {
-						var contextualizedVariable = getDistinctContextualized(this, context)
+						var contextualizedVariable = getMaterializedContextualInstance(this, context)
 						if (contextualizedVariable) {
 							return contextualizedVariable.cachedValue
 						}
@@ -2008,14 +2138,15 @@
 				return Variable.prototype.updated.call(this, updateEvent, this.parent, context)
 			},
 			updated: function(updateEvent, by, context) {
-				//if (updateEvent !== ToChild) {
-					this._changeValue(context, updateEvent)
-				//}
-				return Variable.prototype.updated.call(this, updateEvent, by, context)
+				if (updateEvent = Variable.prototype.updated.call(this, updateEvent, by, context)) {
+					this.parent.updated(new PropertyChangeEvent(this.key, updateEvent, this.parent), this, context)
+				}
 			},
 			_changeValue: function(context, type, newValue) {
 				var key = this.key
 				var parent = this.parent
+				var variable = this
+				parent._willModify(context)
 				return when(parent.valueOf(context), function(object) {
 					if (object == null) {
 						// nothing there yet, create an object to hold the new property
@@ -2036,11 +2167,12 @@
 							object[key] = newValue
 						}
 					}
+					variable.updated(null, variable, context)
+
+					// now notify any object listeners
 					var listeners = propertyListenersMap.get(object)
-					// at least make sure we notify the parent
 					// we need to do it before the other listeners, so we can update it before
 					// we trigger a full clobbering of the object
-					parent._propertyChange(key, object, context, type)
 					if (listeners) {
 						listeners = listeners.slice(0)
 						for (var i = 0, l = listeners.length; i < l; i++) {
@@ -2052,6 +2184,10 @@
 						}
 					}
 				})
+			},
+			_willModify: function() {
+				this.parent._willModify()
+				return Variable.prototype._willModify.call(this)
 			},
 			validate: function(target, schema) {
 				return this.parent.validate(target.valueOf(), schema)
@@ -2071,8 +2207,9 @@
 		})
 		Variable.Property = Property
 
-		var Item = Variable.Item = lang.compose(Variable, function Item(value) {
+		var Item = Variable.Item = lang.compose(Variable, function Item(value, content) {
 			this.value = value
+			this.collection = content
 		}, {})
 
 		var Composite = Variable.Composite = lang.compose(Caching, function Composite(args) {
@@ -2092,24 +2229,24 @@
 
 			updated: function(updateEvent, by, context) {
 				var args = this.args
-				if (by !== this.notifyingValue && updateEvent !== Refresh) {
+				if (by !== this.notifyingValue && updateEvent && updateEvent.type !== 'refresh') {
 					// using a painful search instead of indexOf, because args may be an arguments object
 					for (var i = 0, l = args.length; i < l; i++) {
 						var arg = args[i]
 						if (arg === by) {
 							// if one of the args was updated, we need to do a full refresh (we can't compute differential events without knowledge of how the mapping function works)
-							updateEvent = Refresh
+							updateEvent = new RefreshEvent()
 							continue
 						}
 					}
 				}
-				Caching.prototype.updated.call(this, updateEvent, by, context)
+				return Caching.prototype.updated.call(this, updateEvent, by, context)
 			},
 
 			getUpdates: function(since) {
 				// this always issues updates, nothing incremental can flow through it
 				if (!since || since.version < getVersion()) {
-					return [new Refresh()]
+					return [new RefreshEvent()]
 				}
 			},
 
@@ -2143,10 +2280,13 @@
 			this.functionVariable = functionVariable
 			this.args = args
 		}, {
+			fixed: true,
 			forDependencies: function(callback) {
 				// depend on the args
 				Composite.prototype.forDependencies.call(this, callback)
-				callback(this.functionVariable)
+				if (this.functionVariable.notifies) {
+					callback(this.functionVariable)
+				}
 			},
 
 			getValue: function(context) {
@@ -2162,7 +2302,11 @@
 
 			getVersion: function(context) {
 				// TODO: shortcut if we are live and since equals this.lastUpdate
-				return Math.max(Composite.prototype.getVersion.call(this, context), this.functionVariable.getVersion(context))
+				var argsVersion = Composite.prototype.getVersion.call(this, context)
+				if (this.functionVariable.getVersion) {
+					return Math.max(argsVersion, this.functionVariable.getVersion(context))
+				}
+				return argsVersion
 			},
 
 			execute: function(context) {
@@ -2183,7 +2327,9 @@
 							if (functionValue.reverse) {
 								functionValue.reverse.call(call, value, call.args, context)
 								return Variable.prototype.put.call(call, value, context)
-							}else{
+							} else if (originalValue && originalValue.put) {
+								return originalValue.put(value)
+							} else {
 								return deny
 							}
 						}, call.args, context)
@@ -2269,60 +2415,63 @@
 					}
 					// try to use own method, but if not available, use Array's methods
 					var result = array[name] ? array[name].apply(array, args) : Array.prototype[name].apply(array, args)
+					variable.updateVersion()
 					if (sendUpdates) {
 						sendUpdates.call(variable, args, result, array)
 					}
+					variable.cachedVersion = variable.version // update the cached version so it doesn't need to be recomputed
+					variable.cachedValue = array
 					return result
 				})
 			}
 		}
 		arrayMethod('splice', function(args, result) {
 			for (var i = 0; i < args[1]; i++) {
-				this.updated({
-					type: 'delete',
+				this.updated(new DeleteEvent({
 					previousIndex: args[0],
-					oldValue: result[i]
-				}, this)
+					oldValue: result[i],
+					modifier: this
+				}), this)
 			}
 			for (i = 2, l = args.length; i < l; i++) {
-				this.updated({
-					type: 'add',
+				this.updated(new AddEvent({
 					value: args[i],
-					index: args[0] + i - 2
-				}, this)
+					index: args[0] + i - 2,
+					modifier: this
+				}), this)
 			}
 		})
 		arrayMethod('push', function(args, result) {
 			for (var i = 0, l = args.length; i < l; i++) {
 				var arg = args[i]
-				this.updated({
-					type: 'add',
+				this.updated(new AddEvent({
 					index: result - i - 1,
-					value: arg
-				}, this)
+					value: arg,
+					modifier: this
+				}), this)
 			}
 		})
 		arrayMethod('unshift', function(args, result) {
 			for (var i = 0, l = args.length; i < l; i++) {
 				var arg = args[i]
-				this.updated({
-					type: 'add',
+				this.updated(new AddEvent({
 					index: i,
-					value: arg
-				}, this)
+					value: arg,
+					modifier: this
+				}), this)
 			}
 		})
 		arrayMethod('shift', function(args, results) {
-			this.updated({
-				type: 'delete',
-				previousIndex: 0
-			}, this)
+			this.updated(new DeleteEvent({
+				previousIndex: 0,
+				modifier: this
+			}), this)
 		})
 		arrayMethod('pop', function(args, results, array) {
-			this.updated({
-				type: 'delete',
-				previousIndex: array.length
-			}, this)
+			this.updated(new DeleteEvent({
+				previousIndex: array.length,
+				modifier: this
+			}), this)
 		})
 
 		function iterateMethod(method) {
@@ -2332,8 +2481,13 @@
 		}
 
 		iterateMethod('filter')
-		//iterateMethod('map')
-
+		iterateMethod('map')
+		iterateMethod('reduce')
+		iterateMethod('reduceRight')
+		iterateMethod('some')
+		iterateMethod('every')
+		iterateMethod('slice')
+		
 		var IterativeMethod = lang.compose(Composite, function(source, method, args) {
 			this.source = source
 			// source.interestWithin = true
@@ -2347,20 +2501,17 @@
 				return when(this.source.valueOf(context), function(array) {
 					if (array && array.forEach) {
 						if (variable.dependents) {
-							var map = variable.contextMap || (variable.contextMap = new WeakMap())
 							var contextualizedVariable
 							if (context) {
-								if (map.has(context.distinctSubject)) {
-									contextualizedVariable = map.get(context.distinctSubject)
+								var contextMap = variable.contextMap || (variable.contextMap = new WeakMap())
+								if (contextMap.has(context.distinctSubject)) {
+									contextualizedVariable = contextMap.get(context.distinctSubject)
 								} else {
-									map.set(context.distinctSubject, contextualizedVariable = new ContextualizedVariable(variable, context.distinctSubject))
+									contextMap.set(context.distinctSubject, contextualizedVariable = new ContextualizedVariable(variable, context.distinctSubject))
 								}
 							} else {
 								contextualizedVariable = variable
 							}
-							array.forEach(function(object) {
-								registerListener(object, contextualizedVariable)
-							})
 						}
 					} else {
 						if (method === 'map'){
@@ -2375,24 +2526,19 @@
 				})
 			},
 			updated: function(event, by, context) {
-				if (by === this || by && by.constructor === this) {
+				if (!event || event.modifier === this || (event.modifier && event.modifier.constructor === this)) {
 					return Composite.prototype.updated.call(this, event, by, context)
 				}
 				var propagatedEvent = event.type === 'refresh' ? event : // always propagate refreshes
-					this[this.method + 'Updated'](event, context)
+					this[this.method + 'Updated'] ? this[this.method + 'Updated'](event, context) : // if we have an updated handler, use it
+					new RefreshEvent() // else recompute the array method
 				// TODO: make sure we normalize the event structure
-				if (this.dependents && event.oldValue && typeof event.value === 'object') {
-					deregisterListener(this)
-				}
-				if (this.dependents && event.value && typeof event.value === 'object') {
-					registerListener(event.value, getDistinctContextualized(this, context))
-				}
 				if (propagatedEvent) {
 					Composite.prototype.updated.call(this, propagatedEvent, by, context)
 				}
 			},
 			filterUpdated: function(event, context) {
-				var contextualizedVariable = getDistinctContextualized(this, context)
+				var contextualizedVariable = getMaterializedContextualInstance(this, context) || this
 				if (event.type === 'delete') {
 					var index = contextualizedVariable.cachedValue.indexOf(event.oldValue)
 					if (index > -1) {
@@ -2403,13 +2549,14 @@
 						contextualizedVariable.push(event.value)
 					}
 				} else if (event.type === 'update') {
-					var index = contextualizedVariable.cachedValue.indexOf(event.object)
-					var matches = [event.object].filter(this.args[0]).length > 0
+					var object = event.parent.valueOf(context)
+					var index = contextualizedVariable.cachedValue.indexOf(object)
+					var matches = [object].filter(this.args[0]).length > 0
 					if (index > -1) {
 						if (matches) {
 							return {
 								type: 'updated',
-								object: event.object,
+								object: object,
 								index: index
 							}
 						} else {
@@ -2417,7 +2564,7 @@
 						}
 					}	else {
 						if (matches) {
-							contextualizedVariable.push(event.object)
+							contextualizedVariable.push(object)
 						}
 						// else nothing mactches
 					}
@@ -2426,12 +2573,22 @@
 					return event
 				}
 			},
-			mapUpdated: function(event) {
-				return {
-					type: event.type,
-					value: [event.value].map(this.args[0])
+			mapUpdated: function(event, context) {
+				var contextualizedVariable = getMaterializedContextualInstance(this, context) || this
+				if (event.type === 'delete') {
+					contextualizedVariable.splice(event.previousIndex, 1)
+				} else if (event.type === 'add') {
+					contextualizedVariable.push(this.args[0].call(this.args[1], event.value))
+				} else if (event.type === 'update') {
+					var object = event.parent.valueOf(context)
+					var index = contextualizedVariable.cachedValue.indexOf(object)
+					var matches = [object].filter(this.args[0]).length > 0
+					contextualizedVariable.splice(index, 1, this.args[0].call(this.args[1], event.value))
+				} else {
+					return event
 				}
 			},
+			// TODO: Create specialized updated handlers for faster recomputation of other array derivatives
 			forDependencies: function(callback) {
 				// depend on the args
 				Composite.prototype.forDependencies.call(this, callback)
@@ -2452,11 +2609,13 @@
 				var lastValue
 				var i
 				var generatorIterator
+				var isThrowing
 				if (resuming) {
 					// resuming from a promise
 					generatorIterator = resuming.iterator
 					i = resuming.i
 					lastValue = resuming.value
+					isThrowing = resuming.isThrowing
 				} else {
 					// a fresh start
 					i = 0
@@ -2465,7 +2624,7 @@
 				
 				var args = this.args
 				do {
-					var stepReturn = generatorIterator.next(lastValue)
+					var stepReturn = generatorIterator[isThrowing ? 'throw' : 'next'](lastValue)
 					if (stepReturn.done) {
 						return stepReturn.value
 					}
@@ -2491,10 +2650,17 @@
 						var variable = this
 						// and return the promise so that the getValue caller can wait on this
 						return lastValue.then(function(value) {
-							return getValue.call(this, context, {
+							return getValue.call(variable, context, {
 								i: i,
 								iterator: generatorIterator,
 								value: value
+							})
+						}, function(error) {
+							return getValue.call(variable, context, {
+								i: i,
+								iterator: generatorIterator,
+								value: error,
+								isThrowing: true
 							})
 						})
 					}
@@ -2531,47 +2697,6 @@
 		}
 		addFlag(Variable, 'handlesContext')
 		addFlag(Variable, 'handlesPromises')
-
-		function observe(object) {
-			var listeners = propertyListenersMap.get(object)
-			if (!listeners) {
-				propertyListenersMap.set(object, listeners = [])
-			}
-			if (listeners.observerCount) {
-				listeners.observerCount++
-			}else{
-				listeners.observerCount = 1
-				var observer = listeners.observer = lang.observe(object, function(events) {
-					for (var i = 0, l = listeners.length; i < l; i++) {
-						var listener = listeners[i]
-						for (var j = 0, el = events.length; j < el; j++) {
-							var event = events[j]
-							listener._propertyChange(event.name, object)
-						}
-					}
-				})
-				if (observer.addKey) {
-					for (var i = 0, l = listeners.length; i < l; i++) {
-						var listener = listeners[i]
-						listener.eachKey(function(key) {
-							observer.addKey(key)
-						})
-					}
-				}
-			}
-			return {
-				remove: function() {
-					if (!(--listeners.observerCount)) {
-						listeners.observer.remove()
-					}
-				},
-				done: function() {
-					// deliver changes
-					lang.deliverChanges(observer)
-					this.remove()
-				}
-			}
-		}
 
 		function objectUpdated(object) {
 			// simply notifies any subscribers to an object, that it has changed
@@ -2737,23 +2862,18 @@
 		Variable.hasOwn = hasOwn
 		Variable.all = all
 		Variable.objectUpdated = objectUpdated
-		Variable.observe = observe
+		Variable.observe = function() {
+			throw new Error('Use variable.observeObject() instead')
+		}
 
 		return Variable
-	}));
+	}.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__), __WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__))
 
 /***/ },
 /* 5 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var __WEBPACK_AMD_DEFINE_FACTORY__, __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;(function (root, factory) { if (true) {
-	        !(__WEBPACK_AMD_DEFINE_ARRAY__ = [], __WEBPACK_AMD_DEFINE_FACTORY__ = (factory), __WEBPACK_AMD_DEFINE_RESULT__ = (typeof __WEBPACK_AMD_DEFINE_FACTORY__ === 'function' ? (__WEBPACK_AMD_DEFINE_FACTORY__.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__)) : __WEBPACK_AMD_DEFINE_FACTORY__), __WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__))
-	    } else if (typeof module === 'object' && module.exports) {
-	        module.exports = factory()
-	    } else {
-	        root.alkali = {lang: factory()}
-	    }
-	}(this, function () {
+	var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_DEFINE_ARRAY__ = [], __WEBPACK_AMD_DEFINE_RESULT__ = function () {
 		var getPrototypeOf = Object.getPrototypeOf || (function(base) { return base.__proto__ })
 		var setPrototypeOf = Object.setPrototypeOf || (function(base, proto) { base.__proto__ = proto})
 		var hasFeatures = {
@@ -3135,20 +3255,13 @@
 			}
 		}
 		return lang
-	}));
+	}.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__), __WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__))
 
 /***/ },
 /* 6 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var __WEBPACK_AMD_DEFINE_FACTORY__, __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;(function (root, factory) { if (true) {
-	        !(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(5)], __WEBPACK_AMD_DEFINE_FACTORY__ = (factory), __WEBPACK_AMD_DEFINE_RESULT__ = (typeof __WEBPACK_AMD_DEFINE_FACTORY__ === 'function' ? (__WEBPACK_AMD_DEFINE_FACTORY__.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__)) : __WEBPACK_AMD_DEFINE_FACTORY__), __WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__))
-	    } else if (typeof module === 'object' && module.exports) {
-	        module.exports = factory(require('./util/lang'))
-	    } else {
-	        root.alkali.Updater = factory(root.alkali.lang)
-	    }
-	}(this, function (lang, Variable) {
+	var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(5)], __WEBPACK_AMD_DEFINE_RESULT__ = function (lang, Variable) {
 		var doc = typeof document !== 'undefined' && document
 		var invalidatedElements
 		var queued
@@ -3534,20 +3647,13 @@
 			}
 		}
 		return Updater
-	}));
+	}.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__), __WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__))
 
 /***/ },
 /* 7 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var __WEBPACK_AMD_DEFINE_FACTORY__, __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;(function (root, factory) { if (true) {
-	        !(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(5), __webpack_require__(4)], __WEBPACK_AMD_DEFINE_FACTORY__ = (factory), __WEBPACK_AMD_DEFINE_RESULT__ = (typeof __WEBPACK_AMD_DEFINE_FACTORY__ === 'function' ? (__WEBPACK_AMD_DEFINE_FACTORY__.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__)) : __WEBPACK_AMD_DEFINE_FACTORY__), __WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__))
-	    } else if (typeof module === 'object' && module.exports) {
-	        module.exports = factory(require('./util/lang'), require('./Variable'))
-	    } else {
-	        root.alkali.react = factory(root.alkali.lang, root.alkali.Variable)
-	    }
-	}(this, function (lang, Variable) {
+	var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(5), __webpack_require__(4)], __WEBPACK_AMD_DEFINE_RESULT__ = function (lang, Variable) {
 
 		function react(generator, options) {
 			if (options && options.reverse) {
@@ -3556,20 +3662,13 @@
 			return new Variable.GeneratorVariable(generator)
 		}
 		return react
-	}))
+	}.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__), __WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__))
 
 /***/ },
 /* 8 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var __WEBPACK_AMD_DEFINE_FACTORY__, __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;(function (root, factory) { if (true) {
-	        !(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(4)], __WEBPACK_AMD_DEFINE_FACTORY__ = (factory), __WEBPACK_AMD_DEFINE_RESULT__ = (typeof __WEBPACK_AMD_DEFINE_FACTORY__ === 'function' ? (__WEBPACK_AMD_DEFINE_FACTORY__.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__)) : __WEBPACK_AMD_DEFINE_FACTORY__), __WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__))
-	    } else if (typeof module === 'object' && module.exports) {
-	        module.exports = factory(require('./Variable'))
-	    } else {
-	        root.alkali.operators = factory(root.alkali.Variable)
-	    }
-	}(this, function (Variable) {
+	var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(4)], __WEBPACK_AMD_DEFINE_RESULT__ = function (Variable) {
 		var deny = Variable.deny;
 		var operatingFunctions = {};
 		var operators = {};
@@ -3577,7 +3676,7 @@
 			// jshint evil: true
 			return operatingFunctions[expression] ||
 				(operatingFunctions[expression] =
-					new Function('a', 'b', 'return ' + expression));
+					new Function('a', 'b', 'deny', 'return ' + expression));
 		}
 		function operator(operator, name, precedence, forward, reverseA, reverseB){
 			// defines the standard operators
@@ -3606,6 +3705,8 @@
 					operators[operator] = operatorHandler = new Variable(forward);
 
 					addFlags(operatorHandler);
+					args = Array.prototype.slice.call(args);
+					args.push(deny)
 					return operatorHandler.apply(instance, args);
 				}
 			};
@@ -3639,10 +3740,101 @@
 		operator('|', 'or', 8, 'a||b');
 		operator('round', 'round', 8, 'Math.round(a*Math.pow(10,b||1))/Math.pow(10,b||1)', 'a', 'a');
 		return operators;
-	}));
+	}.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__), __WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__))
 
 /***/ },
 /* 9 */
+/***/ function(module, exports, __webpack_require__) {
+
+	var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(5), __webpack_require__(4)], __WEBPACK_AMD_DEFINE_RESULT__ = function (lang, Variable) {
+
+		function deepCopy(source, target, derivativeMap) {
+			if (source && typeof source == 'object') {
+				if (source instanceof Array) {
+					target = [] // always create a new array for array targets
+					for(var i = 0, l = source.length; i < l; i++) {
+						target[i] = deepCopy(source[i], null, derivativeMap)
+					}
+				} else {
+					if (!target || typeof target !== 'object') {
+						target = derivativeMap && derivativeMap.get(source)
+						if (!target) {
+							target = {}
+							derivativeMap && derivativeMap.set(source, target)
+						}
+					}
+					for (var i in source) {
+						target[i] = deepCopy(source[i], target[i], derivativeMap)
+					}
+				}
+				return target
+			}
+			return source
+		}
+
+		var Copy = lang.compose(Variable, function(copiedFrom) {
+			// this is the variable that we derive from
+			this.copiedFrom = copiedFrom
+			this.derivativeMap = new lang.WeakMap(null, 'derivative')
+			this.isDirty = new Variable(false)
+		}, {
+			valueOf: function(context) {
+				if(this.state) {
+					this.state = null
+				}
+				var value = this.copiedFrom.valueOf(context)
+				if(value && typeof value == 'object') {
+					var derivative = this.derivativeMap.get(value)
+					if (derivative == null) {
+						this.derivativeMap.set(value, derivative = deepCopy(value, undefined, this.derivativeMap))
+						this.setValue(derivative, context)
+					}
+					return derivative
+				}
+				var thisValue = this.getValue(context)
+				if(thisValue === undefined) {
+					return value
+				}
+				return thisValue
+			},
+			getCopyOf: function(value) {
+				var derivative = this.derivativeMap.get(value)
+				if (derivative == null) {
+					this.derivativeMap.set(value, derivative = deepCopy(value, undefined, this.derivativeMap))
+				}
+				return derivative
+			},
+			save: function() {
+				// copy back to the original object
+				var original = this.copiedFrom.valueOf()
+				var newCopiedFrom = deepCopy(this.valueOf(), original)
+				if (original !== newCopiedFrom) {
+					// if we have replaced it with a new object/value, put it
+					this.copiedFrom.put && this.copiedFrom.put(newCopiedFrom)
+				} else {
+					// else we have modified an existing object, but we still need to notify
+					if (this.copiedFrom.notifies && this.copiedFrom.updated) { // copiedFrom doesn't have to be a variable, it can be a plain object
+						this.copiedFrom.updated()
+					}
+				}
+				this.isDirty.put(false)
+				this.onSave && this.onSave()
+			},
+			revert: function() {
+				var original = this.copiedFrom.valueOf()
+				this.put(deepCopy(original, this.derivativeMap.get(original), this.derivativeMap))
+				this.isDirty.put(false)
+			},
+			updated: function() {
+				this.isDirty.put(true)
+				return Variable.prototype.updated.apply(this, arguments)
+			}
+		})
+		return Copy
+	}.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__), __WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__))
+
+/***/ },
+/* 10 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -3653,7 +3845,7 @@
 
 	var _alkali = __webpack_require__(2);
 
-	var _Todo = __webpack_require__(10);
+	var _Todo = __webpack_require__(11);
 
 	var _Todo2 = _interopRequireDefault(_Todo);
 
@@ -3709,7 +3901,7 @@
 		value: _Todo2.default.property('newItem'),
 		onkeypress: function onkeypress(event) {
 			if (event.which === 13) {
-				_Todo2.default.for(this).add();
+				//							Todo.for(this).add()
 			}
 		}
 	})], {
@@ -3757,11 +3949,10 @@
 		onclick: _Todo2.default.clearCompleted
 	})])]), (0, _alkali.Footer)('#info', [(0, _alkali.P)('', 'Double-click to edit a todo')])]));
 
-	_alkali.options.moveLiveElementsEnabled = false; // recommended performance improvement
 	exports.default = TodoView;
 
 /***/ },
-/* 10 */
+/* 11 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -3830,8 +4021,8 @@
 			});
 		}).setReverse( // and define the reverse action when the checkbox changes
 		function (allCompleted) {
-			return _TodoList2.default.defaultInstance.forEach(function (todo) {
-				new _alkali.Variable(todo).set('completed', allCompleted);
+			return _TodoList2.default.defaultInstance.forEach(_alkali.Item, function (todo) {
+				todo.set('completed', allCompleted);
 			});
 		}),
 		delete: function _delete(event) {
@@ -3860,7 +4051,7 @@
 	exports.default = Todo;
 
 /***/ },
-/* 11 */
+/* 12 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
@@ -3904,3 +4095,4 @@
 
 /***/ }
 /******/ ]);
+//# sourceMappingURL=bundle.js.map

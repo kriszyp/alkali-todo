@@ -33,8 +33,8 @@ export default class Todo extends Variable({
 			todos.length && todos.every((todo) => todo.completed))
 		.setReverse( // and define the reverse action when the checkbox changes
 			(allCompleted) =>
-				TodoList.defaultInstance.forEach((todo) => {
-					new Variable(todo).set('completed', allCompleted);
+				TodoList.defaultInstance.forEach(Item, (todo) => {
+					todo.set('completed', allCompleted);
 				})),
 	delete(event) {
 		// delete a todo

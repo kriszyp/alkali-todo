@@ -23,12 +23,7 @@ class TodoView extends Div('#todo', [
 					placeholder: 'What needs to be done?',
 					// we can variables for any property; when we use a variable in a user-input
 					// driven property, the binding is bi-directional
-					value: Todo.property('newItem'),
-					onkeypress(event) {
-						if (event.which === 13) {
-							Todo.for(this).add()
-						}
-					}
+					value: Todo.property('newItem')
 				})
 			], {
 				onsubmit(event) {
@@ -101,5 +96,4 @@ class TodoView extends Div('#todo', [
 ]) {
 }
 
-options.moveLiveElementsEnabled = false // recommended performance improvement
 export default TodoView;
