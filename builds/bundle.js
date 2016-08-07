@@ -103,7 +103,8 @@
 /* 2 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(3), __webpack_require__(4), __webpack_require__(7), __webpack_require__(6), __webpack_require__(8), __webpack_require__(9)], __WEBPACK_AMD_DEFINE_RESULT__ = function(Element, Variable, react, Updater, operators, Copy) {
+	var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;/// <reference path="./typing.d.ts" />
+	!(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(3), __webpack_require__(4), __webpack_require__(7), __webpack_require__(6), __webpack_require__(8), __webpack_require__(9)], __WEBPACK_AMD_DEFINE_RESULT__ = function(Element, Variable, react, Renderer, operators, Copy) {
 		var main = Object.create(Element)
 		main.Copy = Copy
 		main.Element = Element
@@ -113,8 +114,8 @@
 		main.spawn = function(func) {
 			return react(func).valueOf()
 		}
-		main.Updater = Updater
-		Object.assign(main, Updater)
+		main.Renderer = Renderer
+		Object.assign(main, Renderer)
 		Object.assign(main, operators)
 		return main
 	}.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__), __WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__))
@@ -123,7 +124,7 @@
 /* 3 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(4), __webpack_require__(6), __webpack_require__(5)], __WEBPACK_AMD_DEFINE_RESULT__ = function (Variable, Updater, lang) {
+	var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(4), __webpack_require__(6), __webpack_require__(5)], __WEBPACK_AMD_DEFINE_RESULT__ = function (Variable, Renderer, lang) {
 		var knownElementProperties = {};
 		['textContent', 'innerHTML', 'title', 'href', 'value', 'valueAsNumber', 'role', 'render'].forEach(function(property) {
 			knownElementProperties[property] = true
@@ -140,10 +141,11 @@
 			this.subject = subject
 		}
 
-		var PropertyUpdater = Updater.PropertyUpdater
-		var AttributeUpdater = Updater.AttributeUpdater
-		var StyleUpdater = lang.compose(Updater.StyleUpdater, function StyleUpdater() {
-			Updater.StyleUpdater.apply(this, arguments)
+		var PropertyRenderer = Renderer.PropertyRenderer
+		var InputPropertyRenderer = Renderer.InputPropertyRenderer
+		var AttributeRenderer = Renderer.AttributeRenderer
+		var StyleRenderer = lang.compose(Renderer.StyleRenderer, function StyleRenderer() {
+			Renderer.StyleRenderer.apply(this, arguments)
 		}, {
 			renderUpdate: function(newValue, element) {
 				var definition = styleDefinitions[this.name]
@@ -155,9 +157,9 @@
 			}
 		})
 
-		var ClassNameUpdater = lang.compose(Updater.ElementUpdater, function ClassNameUpdater(options) {
+		var ClassNameRenderer = lang.compose(Renderer.ElementRenderer, function ClassNameRenderer(options) {
 			this.className = options.className
-			Updater.apply(this, arguments)
+			Renderer.apply(this, arguments)
 		}, {
 			renderUpdate: function(newValue, element) {
 				var currentClassName = element.className
@@ -180,8 +182,8 @@
 		})
 
 		// TODO: check for renderContent with text updater
-		var TextUpdater = Updater.TextUpdater
-		var ListUpdater = Updater.ListUpdater
+		var TextRenderer = Renderer.TextRenderer
+		var ListRenderer = Renderer.ListRenderer
 		
 		var toAddToElementPrototypes = []
 		var createdBaseElements = []
@@ -254,7 +256,7 @@
 				var styleSheetElement = doc.createElement("style")
 				styleSheetElement.setAttribute("type", "text/css")
 	//			styleSheet.appendChild(doc.createTextNode(css))
-				document.head.insertBefore(styleSheetElement, document.head.firstChild)
+				doc.head.insertBefore(styleSheetElement, doc.head.firstChild)
 				styleSheet = styleSheetElement.sheet
 			}
 			var cssRules = styleSheet.cssRules || styleSheet.rules
@@ -305,10 +307,10 @@
 						layoutChildren(childNode.contentNode || childNode, child, container)
 					} else if (child.notifies) {
 						// a variable
-						fragment.appendChild(variableAsText(parent, child))
+						fragment.appendChild(childNode = variableAsText(parent, child))
 					} else if (child.nodeType) {
 						// an element itself
-						fragment.appendChild(child)
+						fragment.appendChild(childNode = child)
 					} else {
 						// TODO: apply properties to last child, but with binding to the parent (for events)
 						throw new Error('Unknown child type ' + child)
@@ -340,7 +342,7 @@
 			}
 			var textNode = doc.createTextNode(text)
 			if (content.notifies) {
-				enterUpdater(TextUpdater, {
+				enterRenderer(TextRenderer, {
 					element: parent,
 					textNode: textNode,
 					variable: content
@@ -351,7 +353,7 @@
 
 		function bidirectionalHandler(element, value, key) {
 			if (value && value.notifies) {
-				enterUpdater(PropertyUpdater, {
+				enterRenderer(InputPropertyRenderer, {
 					name: key,
 					variable: value,
 					element: element
@@ -360,7 +362,12 @@
 					bindChanges(element, value, key)
 				}
 			} else {
-				element[key] = value
+				if (element.tagName === 'SELECT' && key === 'value') {
+					// use the deferred <select> value assignment
+					InputPropertyRenderer.prototype.renderSelectValueUpdate(value, element)
+				} else {
+					InputPropertyRenderer.prototype.renderUpdate(value, element)
+				}
 			}
 		}
 
@@ -388,7 +395,7 @@
 					var flag = classes[className]
 					if (flag && flag.notifies) {
 						// if it is a variable, we react to it
-						enterUpdater(ClassNameUpdater, {
+						enterRenderer(ClassNameRenderer, {
 							element: element,
 							className: className,
 							variable: flag
@@ -401,13 +408,13 @@
 			class: applyAttribute,
 			for: applyAttribute,
 			role: applyAttribute,
-			render: function(element, value, key) {
+			render: function(element, value, key, properties) {
 				// TODO: This doesn't need to be a property updater
 				// we should also verify it is a generator
 				// and maybe, at some point, find an optimization to eliminate the bind()
-				enterUpdater(PropertyUpdater, {
+				enterRenderer(PropertyRenderer, {
 					name: key,
-					variable: new Variable.GeneratorVariable(value.bind(element)),
+					variable: new Variable.GeneratorVariable(value.bind(element, properties)),
 					element: element
 				})
 			},
@@ -425,7 +432,7 @@
 				if (typeof value === 'string') {
 					element.setAttribute('style', value)
 				} else if (value && value.notifies) {
-					enterUpdater(AttributeUpdater, {
+					enterRenderer(AttributeRenderer, {
 						name: 'style',
 						variable: value,
 						elment: element
@@ -437,7 +444,7 @@
 		}
 		function applyAttribute(element, value, key) {
 			if (value && value.notifies) {
-				enterUpdater(AttributeUpdater, {
+				enterRenderer(AttributeRenderer, {
 					name: key,
 					variable: value,
 					element: element
@@ -452,8 +459,8 @@
 		})
 
 		function applySubProperties(renderer) {
-			var SubPropertyUpdater = lang.compose(PropertyUpdater, function SubPropertyUpdater(options) {
-				PropertyUpdater.apply(this, arguments)
+			var SubPropertyRenderer = lang.compose(PropertyRenderer, function SubPropertyRenderer(options) {
+				PropertyRenderer.apply(this, arguments)
 			}, {
 				renderUpdate: renderer
 			})	
@@ -462,7 +469,7 @@
 				for (var subKey in value) {
 					var subValue = value[subKey]
 					if (subValue && subValue.notifies) {
-						enterUpdater(SubPropertyUpdater, {
+						enterRenderer(SubPropertyRenderer, {
 							name: subKey,
 							variable: subValue,
 							element: element
@@ -482,7 +489,7 @@
 					propertyHandlers[key](element, value, key, properties)
 				} else if ((styleDefinition = styleDefinitions[key]) && element[key] === undefined) {
 					if (value && value.notifies) {
-						enterUpdater(StyleUpdater, {
+						enterRenderer(StyleRenderer, {
 							name: key,
 							variable: value,
 							element: element
@@ -491,7 +498,7 @@
 						styleDefinition(element, value, key)
 					}
 				} else if (value && value.notifies) {
-					enterUpdater(PropertyUpdater, {
+					enterRenderer(PropertyRenderer, {
 						name: key,
 						variable: value,
 						element: element
@@ -546,7 +553,7 @@
 					})
 				}
 				if (content.notifies) {
-					enterUpdater(ListUpdater, {
+					enterRenderer(ListRenderer, {
 						each: each,
 						variable: content,
 						element: element
@@ -594,7 +601,7 @@
 		doc.addEventListener('click', function(event) {
 			var target = event.target
 			if (target.type === 'radio') {
-				var radios = document.querySelectorAll('input[type=radio]')
+				var radios = doc.querySelectorAll('input[type=radio]')
 				for (var i = 0, l = radios.length; i < l; i++) {
 					var radio = radios[i]
 					if (radio.name === target.name && radio !== target) {
@@ -619,7 +626,7 @@
 
 			if (content && content.notifies) {
 				// a variable, respond to changes
-				enterUpdater(PropertyUpdater, {
+				enterRenderer(InputPropertyRenderer, {
 					variable: content,
 					name: inputProperty,
 					element: element
@@ -866,15 +873,19 @@
 				}
 				for (var l = arguments.length; i < l; i++) {
 					var argument = arguments[i]
-					if (argument instanceof Array || argument.notifies) {
-						applyOnCreate.content = argument
+					if (argument && typeof argument === 'object') {
+						if (argument instanceof Array || argument.notifies) {
+							applyOnCreate.content = argument
+						} else {
+							for (var key in argument) {
+								// TODO: do deep merging of styles and classes, but not variables
+								applyOnCreate[key] = argument[key]
+							}
+						}
 					} else if (typeof argument === 'function' && argument.for) {
 						applyOnCreate.content = argument.for(element)
 					} else {
-						for (var key in argument) {
-							// TODO: do deep merging of styles and classes, but not variables
-							applyOnCreate[key] = argument[key]
-						}
+						applyOnCreate.content = argument
 					}
 				}
 			}
@@ -907,14 +918,15 @@
 
 		function registerTag(tagName) {
 			this.tagName = tagName
-			if (document.registerElement && this.prototype.constructor === this) {
-				document.registerElement(tagName, this)
+			if (doc.registerElement && this.prototype.constructor === this) {
+				doc.registerElement(tagName, this)
 			}
 		}
 
 		var Element = withProperties.call(typeof HTMLElement !== 'undefined' ? HTMLElement : function() {})
 
 		Element.registerTag = registerTag
+		Element.applyProperties = applyProperties
 
 		Element.within = function(element){
 			// find closest child
@@ -1095,7 +1107,7 @@
 
 		Element.append = append
 		Element.prepend = prepend
-		Element.refresh = Updater.refresh
+		Element.refresh = Renderer.refresh
 		var options = Element.options = {
 			moveLiveElementsEnabled: true,
 		}
@@ -1184,15 +1196,15 @@
 
 		var Item = Element.Item = Variable.Item
 
-		function enterUpdater(Updater, options/*, target*/) {
+		function enterRenderer(Renderer, options/*, target*/) {
 			// this will be used for optimized class-level variables
 			/*if (target.started) { // TODO: Might want to pass in started as a parameter
 				// this means that the updater has already been created, so we just need to add this instance
-				Updater.prototype.renderUpdate.call(options, element)
+				Renderer.prototype.renderUpdate.call(options, element)
 			} else {*/
 			var target = options.element
 			var updaters = target.updaters || (target.updaters = [])
-			updaters.push(new Updater(options))
+			updaters.push(new Renderer(options))
 			//}
 		}
 
@@ -1250,6 +1262,7 @@
 			//}
 		}
 		if (typeof MutationObserver === 'function') {
+			var docBody = doc.body
 			var lifeStates = [{
 				name: 'detached',
 				nodes: 'removedNodes',
@@ -1269,7 +1282,7 @@
 						return true
 					}
 				} else if (node.__alkaliAttached__) {
-					if (document.contains(node)) {
+					if (docBody.contains(node)) {
 						// detached event, but it is actually still attached (will get attached in a later mutation record)
 						// so don't get through the detached/attached lifecycle
 						return false
@@ -1326,7 +1339,7 @@
 					}
 				}
 			})
-			observer.observe(document.body, {
+			observer.observe(docBody, {
 				childList: true,
 				subtree: true
 			})
@@ -1558,7 +1571,7 @@
 				}
 				if (typeof this === 'function') {
 					// this is a class, the subject should hopefully have an entry
-					if (subject) {
+					if (subject !== undefined) {
 						var instance
 						if (subject.constructor.getForClass) {
 							// if the subject has it is own means of retrieving an instance
@@ -1928,10 +1941,18 @@
 				})
 			},
 
-			to: function (transformFunction) {
-				// TODO: create a more efficient map, we don't really need a full variable here
-				if (!transformFunction) {
+			to: function (transformFunction, reverse) {
+				if (typeof transformFunction !== 'function') {
+					if (typeof transformFunction === 'object') {
+						this.to(transformFunction.forward, transformFunction.reverse)
+					}
 					throw new Error('No function provided to transform')
+				}
+				if (reverse) {
+					transformFunction.reverse = function(value, args, context) {
+						// for direct to, we can just use the first argument
+						reverse.call(this, args[0], context)
+					}
 				}
 				return new Call(transformFunction, [this])
 			},
@@ -2030,18 +2051,144 @@
 					var variable = this
 					return when(this.valueOf(context), function(value) {
 						if (value && typeof value === 'object') {
-							variable.ownObject = Object.create(value)
+							if (value instanceof Array) {
+								variable.ownObject = value.slice(0)
+							} else {
+								variable.ownObject = Object.create(value)
+							}
 						}
 					})
 				}
+			},
+			splice: function(startingIndex, removalCount) {
+				var args = arguments
+				return arrayToModify(this, function(array) {
+					var results = array.splice.apply(array, args)
+					removedAt(this, results, startingIndex, removalCount, array.length)
+					insertedAt(this, [].slice.call(args, 2), startingIndex, array.length)
+					return results
+				})
+			},
+			push: function() {
+				var args = arguments
+				return arrayToModify(this, function(array) {
+					var results = array.push.apply(array, args)
+					insertedAt(this, args, array.length - args.length, array.length)
+					return results
+				})
+			},
+			unshift: function() {
+				var args = arguments
+				return arrayToModify(this, function(array) {
+					var results = array.unshift.apply(array, args)
+					insertedAt(this, args, 0, array.length)
+					return results
+				})
+			},
+			pop: function() {
+				return arrayToModify(this, function(array) {
+					var results = array.pop()
+					removedAt(this, [results], array.length, 1)
+					return results
+				})
+			},
+			shift: function() {
+				return arrayToModify(this, function(array) {
+					var results = array.shift()
+					removedAt(this, [results], 0, 1, array.length)
+					return results
+				})
 			}
-		}	
+		}
+
+		function arrayToModify(variable, callback) {
+			variable._willModify()
+			// TODO: switch this to allow promises
+			when(variable.cachedValue || variable.valueOf(), function(array) {
+				if (!array) {
+					variable.put(array = [])
+				}
+				variable.updateVersion()
+				var results = callback.call(variable, array)
+				variable.cachedVersion = variable.version // update the cached version so it doesn't need to be recomputed
+				return results
+			})
+		}
+
+		function insertedAt(variable, added, startingIndex, arrayLength) {
+			var addedCount = added.length
+			// adjust the key positions of any index properties after splice
+			if (addedCount > 0) {
+				if (variable._properties) {
+					var arrayPosition
+					for (var i = arrayLength - addedCount; i > startingIndex;) {
+						var arrayPosition = variable._properties[--i]
+						if (arrayPosition) {
+							variable._properties[i] = undefined
+							arrayPosition.key += addedCount
+							variable._properties[arrayPosition.key] = arrayPosition
+						}
+					}
+				}
+				// send out updates
+				for (var i = 0, l = added.length; i < l; i++) {
+					variable.updated(new AddEvent({
+						value: added[i],
+						index: i + startingIndex,
+						modifier: variable
+					}), variable)
+				}
+			}
+		}
+
+		function removedAt(variable, removed, startingIndex, removalCount, arrayLength) {
+			// adjust the properties
+			var i = startingIndex + removalCount
+			var arrayPosition
+			if (removalCount > 0) {
+				if (variable._properties) {
+					for (var i = startingIndex + removalCount; i < arrayLength + removalCount; i++) {
+						var arrayPosition = variable._properties[i]
+						if (arrayPosition) {
+							variable._properties[i] = undefined
+							arrayPosition.key -= removalCount
+							variable._properties[arrayPosition.key] = arrayPosition
+						}
+					}
+				}
+				// send out updates
+				for (var i = 0; i < removalCount; i++) {
+					variable.updated(new DeleteEvent({
+						previousIndex: startingIndex,
+						oldValue: removed[i],
+						modifier: variable
+					}), variable)
+				}
+				variable.cachedVersion = variable.version // update the cached version so it doesn't need to be recomputed
+			}
+		}
 
 		if (typeof Symbol !== 'undefined') {
 			Variable.prototype[Symbol.iterator] = function() {
 				return this.valueOf()[Symbol.iterator]()
 			}
 		}
+
+		Variable.VMap = lang.compose(Variable, function(value){
+			this.value = typeof value === 'undefined' ? this.default : value
+		}, {
+			// TODO: Move all the get and set functionality for maps out of Variable
+			property: function(key) {
+				var properties = this._properties || (this._properties = new Map())
+				var propertyVariable = properties.get(key)
+				if (!propertyVariable) {
+					// create the property variable
+					propertyVariable = new Property(this, key)
+					properties.set(key, propertyVariable)
+				}
+				return propertyVariable
+			}
+		})
 
 		var cacheNotFound = {}
 		var Caching = Variable.Caching = lang.compose(Variable, function(getValue, setValue) {
@@ -2405,75 +2552,6 @@
 		})
 
 
-		function arrayMethod(name, sendUpdates) {
-			Variable.prototype[name] = function() {
-				var args = arguments
-				var variable = this
-				return when(this.cachedValue || this.valueOf(), function(array) {
-					if (!array) {
-						variable.put(array = [])
-					}
-					// try to use own method, but if not available, use Array's methods
-					var result = array[name] ? array[name].apply(array, args) : Array.prototype[name].apply(array, args)
-					variable.updateVersion()
-					if (sendUpdates) {
-						sendUpdates.call(variable, args, result, array)
-					}
-					variable.cachedVersion = variable.version // update the cached version so it doesn't need to be recomputed
-					variable.cachedValue = array
-					return result
-				})
-			}
-		}
-		arrayMethod('splice', function(args, result) {
-			for (var i = 0; i < args[1]; i++) {
-				this.updated(new DeleteEvent({
-					previousIndex: args[0],
-					oldValue: result[i],
-					modifier: this
-				}), this)
-			}
-			for (i = 2, l = args.length; i < l; i++) {
-				this.updated(new AddEvent({
-					value: args[i],
-					index: args[0] + i - 2,
-					modifier: this
-				}), this)
-			}
-		})
-		arrayMethod('push', function(args, result) {
-			for (var i = 0, l = args.length; i < l; i++) {
-				var arg = args[i]
-				this.updated(new AddEvent({
-					index: result - i - 1,
-					value: arg,
-					modifier: this
-				}), this)
-			}
-		})
-		arrayMethod('unshift', function(args, result) {
-			for (var i = 0, l = args.length; i < l; i++) {
-				var arg = args[i]
-				this.updated(new AddEvent({
-					index: i,
-					value: arg,
-					modifier: this
-				}), this)
-			}
-		})
-		arrayMethod('shift', function(args, results) {
-			this.updated(new DeleteEvent({
-				previousIndex: 0,
-				modifier: this
-			}), this)
-		})
-		arrayMethod('pop', function(args, results, array) {
-			this.updated(new DeleteEvent({
-				previousIndex: array.length,
-				modifier: this
-			}), this)
-		})
-
 		function iterateMethod(method) {
 			Variable.prototype[method] = function() {
 				return new IterativeMethod(this, method, arguments)
@@ -2581,9 +2659,14 @@
 					contextualizedVariable.push(this.args[0].call(this.args[1], event.value))
 				} else if (event.type === 'update') {
 					var object = event.parent.valueOf(context)
-					var index = contextualizedVariable.cachedValue.indexOf(object)
-					var matches = [object].filter(this.args[0]).length > 0
-					contextualizedVariable.splice(index, 1, this.args[0].call(this.args[1], event.value))
+					var array = contextualizedVariable.cachedValue
+					if (array && array.map) {
+						var index = array.indexOf(object)
+						var matches = [object].filter(this.args[0]).length > 0
+						contextualizedVariable.splice(index, 1, this.args[0].call(this.args[1], event.value))
+					} else {
+						return event
+					}
 				} else {
 					return event
 				}
@@ -2688,6 +2771,7 @@
 			var schemaForObject = schema(target)
 			return new Validating(target, schemaForObject)
 		}
+		Variable.VArray = Variable
 		Variable.deny = deny
 		Variable.noChange = noChange
 		function addFlag(name) {
@@ -3273,7 +3357,7 @@
 			this.subject = subject
 		}
 
-		function Updater(options) {
+		function Renderer(options) {
 			var variable = options.variable
 
 			this.variable = variable
@@ -3311,36 +3395,36 @@
 				variable.notifies(this)
 			} else {
 				// baconjs-esqe API
-				var updater = this
+				var renderer = this
 				variable.subscribe(function (event) {
 					// replace the variable with an object
 					// that returns the value from the event
-					updater.variable = {
+					renderer.variable = {
 						valueOf: function () {
 							return event.value()
 						}
 					}
-					updater.updated()
+					renderer.updated()
 				})
 			}
 			if(options && options.updateOnStart !== false){
 				this.updateRendering(true)
 			}
 		}
-		Updater.prototype = {
-			constructor: Updater,
+		Renderer.prototype = {
+			constructor: Renderer,
 			updateRendering: function () {
-				throw new Error ('updateRendering must be implemented by sub class of Updater')
+				throw new Error ('updateRendering must be implemented by sub class of Renderer')
 			},
 			updated: function (updateEvent, by, context) {
 				if (!this.invalidated) {
 					if (!context || this.contextMatches(context)) {
 						// do this only once, until we render again
 						this.invalidated = true
-						var updater = this
+						var renderer = this
 						requestAnimationFrame(function(){
 							invalidatedElements = null
-							updater.updateRendering(updater.alwaysUpdate)
+							renderer.updateRendering(renderer.alwaysUpdate)
 						})
 					}
 				}
@@ -3373,10 +3457,10 @@
 					lang.queueTask(processQueue)
 					queued = true
 				}
-				var updater = this
+				var renderer = this
 				toRender.push(function(){
-					updater.invalidated = false
-					updater.updateElement(element)
+					renderer.invalidated = false
+					renderer.updateElement(element)
 				})
 			},
 			getId: function(){
@@ -3388,23 +3472,23 @@
 
 		}
 
-		function ElementUpdater(options) {
-			Updater.call(this, options)
+		function ElementRenderer(options) {
+			Renderer.call(this, options)
 		}
-		ElementUpdater.prototype = Object.create(Updater.prototype)
-		ElementUpdater.prototype.shouldRender = function (element) {
+		ElementRenderer.prototype = Object.create(Renderer.prototype)
+		ElementRenderer.prototype.shouldRender = function (element) {
 			return document.body.contains(element)
 		}
-		ElementUpdater.prototype.getSubject = function () {
+		ElementRenderer.prototype.getSubject = function () {
 			return this.element || this.elements[0]
 		}
-		ElementUpdater.prototype.updateRendering = function (always, element) {
+		ElementRenderer.prototype.updateRendering = function (always, element) {
 			var elements = this.elements || (element && [element]) || []
 			if(!elements.length){
 				if(this.selector){
 					elements = document.querySelectorAll(this.selector)
 				}else{
-					throw new Error('No element or selector was provided to the Updater')
+					throw new Error('No element or selector was provided to the Renderer')
 				}
 				return
 			}
@@ -3414,27 +3498,27 @@
 					this.updateElement(elements[i])
 				}else{
 					var id = this.getId()
-					var updaters = elements[i].updatersOnShow
-					if(!updaters){
-						updaters = elements[i].updatersOnShow = []
+					var renderers = elements[i].renderersOnShow
+					if(!renderers){
+						renderers = elements[i].renderersOnShow = []
 						elements[i].className += ' needs-rerendering'
 					}
-					if (!updaters[id]) {
-						updaters[id] = this
+					if (!renderers[id]) {
+						renderers[id] = this
 					}
 				}
 			}
 		}
-		ElementUpdater.prototype.addElement = function (element) {
+		ElementRenderer.prototype.addElement = function (element) {
 			if (this.selector) {
-				element.updatersOnShow = [this]
+				element.renderersOnShow = [this]
 			} else {
 				this.elements.push(element)
 			}
 			// and immediately do an update
 			this.updateElement(element)
 		}
-		ElementUpdater.prototype.updateElement = function(element) {
+		ElementRenderer.prototype.updateElement = function(element) {
 			this.invalidated = false
 			try {
 				// TODO: might make something cheaper than for(element) for setting context?
@@ -3448,107 +3532,150 @@
 					if(this.renderLoading){
 						this.renderLoading(value, element)
 					}
-					var updater = this
+					var renderer = this
 					value.then(function (value) {
-						updater.renderUpdate(value, element)
+						renderer.renderUpdate(value, element)
 					})
 				}else{
 					this.renderUpdate(value, element)
 				}
 			}
 		}
-		ElementUpdater.prototype.renderUpdate = function (newValue, element) {
+		ElementRenderer.prototype.renderUpdate = function (newValue, element) {
 			throw new Error('renderUpdate(newValue) must be implemented')
 		}
-		Updater.Updater = Updater
-		Updater.ElementUpdater = ElementUpdater
+		Renderer.Renderer = Renderer
+		Renderer.ElementRenderer = ElementRenderer
 
-		function AttributeUpdater(options) {
+		function AttributeRenderer(options) {
 			if(options.name){
 				this.name = options.name
 			}
-			ElementUpdater.apply(this, arguments)
+			ElementRenderer.apply(this, arguments)
 		}
-		AttributeUpdater.prototype = Object.create(ElementUpdater.prototype)
-		AttributeUpdater.prototype.type = 'AttributeUpdater'
-		AttributeUpdater.prototype.renderUpdate = function (newValue, element) {
+		AttributeRenderer.prototype = Object.create(ElementRenderer.prototype)
+		AttributeRenderer.prototype.type = 'AttributeRenderer'
+		AttributeRenderer.prototype.renderUpdate = function (newValue, element) {
 			element.setAttribute(this.name, newValue)
 		}
-		Updater.AttributeUpdater = AttributeUpdater
+		Renderer.AttributeRenderer = AttributeRenderer
 
-		function PropertyUpdater(options) {
-			if(options.name){
+		function PropertyRenderer(options) {
+			if (options.name) {
 				this.name = options.name
 			}
-			ElementUpdater.apply(this, arguments)
+			ElementRenderer.apply(this, arguments)
 		}
-		PropertyUpdater.prototype = Object.create(ElementUpdater.prototype)
-		PropertyUpdater.prototype.type = 'PropertyUpdater'
-		PropertyUpdater.prototype.renderUpdate = function (newValue, element) {
+		PropertyRenderer.prototype = Object.create(ElementRenderer.prototype)
+		PropertyRenderer.prototype.type = 'PropertyRenderer'
+		PropertyRenderer.prototype.renderUpdate = function (newValue, element) {
 			element[this.name] = newValue
 		}
-		Updater.PropertyUpdater = PropertyUpdater
+		Renderer.PropertyRenderer = PropertyRenderer
 
-		function StyleUpdater(options) {
+		function InputPropertyRenderer(options) {
+			if (options.element && options.element.tagName === 'SELECT' && options.name === 'value') {
+				// use the deferred value assignment for <select>
+				this.renderUpdate = this.renderSelectValueUpdate
+			}
+			PropertyRenderer.apply(this, arguments)
+		}
+		InputPropertyRenderer.prototype = Object.create(PropertyRenderer.prototype)
+		InputPropertyRenderer.prototype.type = 'InputPropertyRenderer'
+		InputPropertyRenderer.prototype.renderUpdate = function(newValue, element) {
+			if (element.type === 'number') {
+				if (isNaN(newValue)) {
+					newValue = ''
+				}
+			}
+			element[this.name] = newValue
+		}
+		InputPropertyRenderer.prototype.renderSelectValueUpdate = function (newValue, element) {
+			element.value = newValue
+			if (element.value != newValue && !element.value) {
+				// if we didn't successfully set the value of a <select>, we may need to wait until the children are constructed
+				element.eventualValue = newValue
+				lang.nextTurn(function() {
+					if (element.eventualValue) {
+						element.value = element.eventualValue
+						element.eventualValue = undefined
+					}
+				})
+			} else {
+				element.eventualValue = undefined
+			}
+		}
+		Renderer.InputPropertyRenderer = InputPropertyRenderer
+
+		function StyleRenderer(options) {
 			if(options.name){
 				this.name = options.name
 			}
-			ElementUpdater.apply(this, arguments)
+			ElementRenderer.apply(this, arguments)
 		}
-		StyleUpdater.prototype = Object.create(ElementUpdater.prototype)
-		StyleUpdater.prototype.type = 'StyleUpdater'
-		StyleUpdater.prototype.renderUpdate = function (newValue, element) {
+		StyleRenderer.prototype = Object.create(ElementRenderer.prototype)
+		StyleRenderer.prototype.type = 'StyleRenderer'
+		StyleRenderer.prototype.renderUpdate = function (newValue, element) {
 			element.style[this.name] = newValue
 		}
-		Updater.StyleUpdater = StyleUpdater
+		Renderer.StyleRenderer = StyleRenderer
 
-		function ContentUpdater(options) {
-			ElementUpdater.apply(this, arguments)
+		function ContentRenderer(options) {
+			ElementRenderer.apply(this, arguments)
 		}
-		ContentUpdater.prototype = Object.create(ElementUpdater.prototype)
-		ContentUpdater.prototype.type = 'ContentUpdater'
-		ContentUpdater.prototype.renderUpdate = function (newValue, element) {
+		ContentRenderer.prototype = Object.create(ElementRenderer.prototype)
+		ContentRenderer.prototype.type = 'ContentRenderer'
+		ContentRenderer.prototype.renderUpdate = function (newValue, element) {
 			element.innerHTML = ''
 			if (newValue === undefined){
 				newValue = ''
 			}
 			element.appendChild(document.createTextNode(newValue))
 		}
-		Updater.ContentUpdater = ContentUpdater
+		Renderer.ContentRenderer = ContentRenderer
 
-		function TextUpdater(options) {
+		function TextRenderer(options) {
 			this.position = options.position
 			this.textNode = options.textNode
-			ElementUpdater.apply(this, arguments)
+			ElementRenderer.apply(this, arguments)
 		}
-		TextUpdater.prototype = Object.create(ElementUpdater.prototype)
-		TextUpdater.prototype.type = 'TextUpdater'
-		TextUpdater.prototype.renderUpdate = function (newValue, element) {
-			if (newValue === undefined){
+		TextRenderer.prototype = Object.create(ElementRenderer.prototype)
+		TextRenderer.prototype.type = 'TextRenderer'
+		TextRenderer.prototype.renderUpdate = function (newValue, element) {
+			if (newValue == null){
 				newValue = ''
+			} else if (newValue.nodeType) {
+				if (this.textNode && this.textNode.parentNode == element) {
+					// text node is attached, we can replace it with the node
+					element.replaceChild(newValue, this.textNode)
+				} else {
+					element.appendChild(newValue)
+				}
+				this.textNode = newValue
+				return
 			}
 			(this.textNode || element.childNodes[this.position]).nodeValue = newValue
 		}
-		Updater.TextUpdater = TextUpdater
+		Renderer.TextRenderer = TextRenderer
 
-		function ListUpdater(options) {
+		function ListRenderer(options) {
 			if (options.each) {
 				this.each = options.each
 			}
-			ElementUpdater.apply(this, arguments)
+			ElementRenderer.apply(this, arguments)
 		}
-		ListUpdater.prototype = Object.create(ElementUpdater.prototype)
-		ListUpdater.prototype.updated = function (updateEvent, context) {
+		ListRenderer.prototype = Object.create(ElementRenderer.prototype)
+		ListRenderer.prototype.updated = function (updateEvent, context) {
 			(this.updates || (this.updates = [])).push(updateEvent)
-			ElementUpdater.prototype.updated.call(this, updateEvent, context)
+			ElementRenderer.prototype.updated.call(this, updateEvent, context)
 		}
-		ListUpdater.prototype.type = 'ListUpdater'
-		ListUpdater.prototype.omitValueOf = true
-		ListUpdater.prototype.renderUpdate = function (newValue, element) {
+		ListRenderer.prototype.type = 'ListRenderer'
+		ListRenderer.prototype.omitValueOf = true
+		ListRenderer.prototype.renderUpdate = function (newValue, element) {
 			var container
 			var each = this.each
 			var thisElement = this.elements[0]
-			var updater = this
+			var renderer = this
 			if (!this.builtList) {
 				this.builtList = true
 				container = document.createDocumentFragment()
@@ -3563,11 +3690,11 @@
 				container = this.element
 				updates.forEach(function(update) {
 					if (update.type === 'refresh') {
-						updater.builtList = false
+						renderer.builtList = false
 						for (var i = 0, l = childElements.length; i < l; i++) {
 							thisElement.removeChild(childElements[i])
 						}
-						updater.renderUpdate()
+						renderer.renderUpdate()
 					} else {
 						if (update.previousIndex > -1) {
 							thisElement.removeChild(childElements[update.previousIndex])
@@ -3597,9 +3724,9 @@
 				}
 			}
 		}
-		Updater.ListUpdater = ListUpdater
+		Renderer.ListRenderer = ListRenderer
 
-		Updater.onShowElement = function(shownElement){
+		Renderer.onShowElement = function(shownElement){
 			requestAnimationFrame(function(){
 				invalidatedElements = null
 				var elements = [].slice.call(shownElement.getElementsByClassName('needs-rerendering'))
@@ -3610,14 +3737,14 @@
 				}
 				for (var i = 0, l = elements.length; i < l; i++){
 					var element = elements[i]
-					var updaters = element.updatersOnShow
-					if(updaters){
-						element.updatersOnShow = null
+					var renderers = element.renderersOnShow
+					if(renderers){
+						element.renderersOnShow = null
 						// remove needs-rerendering class
 						element.className = element.className.replace(/\s?needs\-rerendering\s?/g, '')
-						for (var id in updaters) {
-							var updater = updaters[id]
-							updater.updateElement(element)
+						for (var id in renderers) {
+							var renderer = renderers[id]
+							renderer.updateElement(element)
 						}
 					}
 				}
@@ -3634,7 +3761,7 @@
 				}
 			}
 		}
-		Updater.onElementRemoval = function(element, onlyChildren){
+		Renderer.onElementRemoval = function(element, onlyChildren){
 			if(!onlyChildren){
 				onElementRemoval(element)
 			}
@@ -3646,21 +3773,51 @@
 				}
 			}
 		}
-		return Updater
+		return Renderer
 	}.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__), __WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__))
 
 /***/ },
 /* 7 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(5), __webpack_require__(4)], __WEBPACK_AMD_DEFINE_RESULT__ = function (lang, Variable) {
+	var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(5), __webpack_require__(4), __webpack_require__(8)], __WEBPACK_AMD_DEFINE_RESULT__ = function (lang, Variable, operators) {
 
 		function react(generator, options) {
+	    if (typeof generator !== 'function') {
+	      throw new Error('react() must be called with a generator. You need to use the babel-plugin-transform-alkali plugin if you want to use reactive expressions')
+	    }
 			if (options && options.reverse) {
 				generator.reverse = options.reverse
 			}
 			return new Variable.GeneratorVariable(generator)
 		}
+	  Object.assign(react, operators)
+	  react.from = function(value) {
+	    if (value && value.notifies) {
+	      return value
+	    }
+	    return new Variable(value)
+	  }
+	  react.prop = function(object, property) {
+	    if (object) {
+	      var value = object[property]
+	      if (value !== undefined || !object.property) {
+	        return value
+	      } else {
+	        return object.property(property)
+	      }
+	    }
+	    return object
+	  }
+	  react.cond = function(test, consequent, alternate) {
+	    return operators.if(test, operators.choose(consequent, alternate))
+	  }
+	  react.fcall = function(target, args) {
+	    return new Variable.Call(target, args)
+	  }
+	  react.mcall = function(target, key, args) {
+	    return new Variable.Call(target[key].bind(target), args)
+	  }
 		return react
 	}.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__), __WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__))
 
@@ -3898,12 +4055,7 @@
 		placeholder: 'What needs to be done?',
 		// we can variables for any property; when we use a variable in a user-input
 		// driven property, the binding is bi-directional
-		value: _Todo2.default.property('newItem'),
-		onkeypress: function onkeypress(event) {
-			if (event.which === 13) {
-				//							Todo.for(this).add()
-			}
-		}
+		value: _Todo2.default.property('newItem')
 	})], {
 		onsubmit: function onsubmit(event) {
 			event.preventDefault();
@@ -3914,12 +4066,8 @@
 	}), _alkali.Label, (0, _alkali.UL)('#todo-list', {
 		content: _Todo2.default.listView,
 		each: (0, _alkali.LI)('.task', [(0, _alkali.Checkbox)('.toggle', _alkali.Item.property('completed')), (0, _alkali.Label)('.view', [_alkali.Item.property('name')], {
-			textDecoration: _alkali.Item.property('completed').to(function (completed) {
-				return completed ? 'line-through' : 'none';
-			}),
-			display: Editing.to(function (editing) {
-				return editing ? 'none' : 'block';
-			}),
+			textDecoration: _alkali.react.from(_alkali.react.cond(_alkali.react.prop(_alkali.Item, 'completed'), 'line-through', 'none')),
+			display: _alkali.react.from(_alkali.react.cond(Editing, 'none', 'block')),
 			ondblclick: function ondblclick() {
 				var editing = Editing.for(this);
 				editing.put(!editing.valueOf());
@@ -3939,12 +4087,8 @@
 		})], {
 			hasOwn: Editing
 		})
-	})]), (0, _alkali.Footer)('#footer', [(0, _alkali.Span)('#todo-count', _Todo2.default.todoCount.to(function (count) {
-		return count + (count > 1 ? ' items left' : ' item left');
-	}), {
-		display: _Todo2.default.todoCount.to(function (count) {
-			return count > 0;
-		})
+	})]), (0, _alkali.Footer)('#footer', [(0, _alkali.Span)('#todo-count', _alkali.react.from(_alkali.react.add(_alkali.react.prop(_Todo2.default, 'todoCount'), _alkali.react.cond(_alkali.react.greater(_alkali.react.prop(_Todo2.default, 'todoCount'), 1), ' items left', ' item left'))), {
+		display: _alkali.react.from(_alkali.react.greater(_alkali.react.prop(_Todo2.default, 'todoCount'), 0))
 	}), (0, _alkali.UL)('#filters', [_alkali.LI, [(0, _alkali.A)({ href: '#/' }, ['All '])], _alkali.LI, [(0, _alkali.A)({ href: '#/active' }, ['Active '])], _alkali.LI, [(0, _alkali.A)({ href: '#/completed' }, ['Completed'])]]), (0, _alkali.Button)('#clear-completed', 'Clear completed', {
 		onclick: _Todo2.default.clearCompleted
 	})])]), (0, _alkali.Footer)('#info', [(0, _alkali.P)('', 'Double-click to edit a todo')])]));

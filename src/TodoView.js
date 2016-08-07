@@ -2,7 +2,7 @@
 This is the main "view" component that renders the todos as DOM elements,
 using the Alkali DOM constructors in declarative style
 */
-import { Div, Section, Span, A, P, Header, H1, Form, Footer, Label, UL, LI, Button, Input, Checkbox, Item, Variable, options } from 'alkali';
+import { react, Div, Section, Span, A, P, Header, H1, Form, Footer, Label, UL, LI, Button, Input, Checkbox, Item, Variable, options } from 'alkali';
 import Todo from './Todo';
 
 // variable representing the state of editing each row
@@ -42,8 +42,8 @@ class TodoView extends Div('#todo', [
 				each: LI('.task', [
 					Checkbox('.toggle', Item.property('completed')),
 					Label('.view', [Item.property('name')], {
-						textDecoration: Item.property('completed').to((completed) => completed ? 'line-through' : 'none'),
-						display: Editing.to((editing) => editing ? 'none' : 'block'),
+						textDecoration: react(Item.completed ? 'line-through' : 'none'),
+						display: react(Editing ? 'none' : 'block'),
 						ondblclick() {
 							let editing = Editing.for(this);
 							editing.put(!editing.valueOf());
@@ -65,8 +65,8 @@ class TodoView extends Div('#todo', [
 			})
 		]),
 		Footer('#footer', [
-			Span('#todo-count', Todo.todoCount.to((count) => count + (count > 1 ? ' items left' : ' item left')), {
-				display: Todo.todoCount.to((count) => count > 0)
+			Span('#todo-count', react(Todo.todoCount + (Todo.todoCount > 1 ? ' items left' : ' item left')), {
+				display: react(Todo.todoCount > 0)
 			}),
 			UL('#filters', [
 				LI, [
