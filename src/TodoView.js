@@ -3,6 +3,7 @@ This is the main "view" component that renders the todos as DOM elements,
 using the Alkali DOM constructors in declarative style
 */
 import { react, Div, Section, Span, A, P, Header, H1, Form, Footer, Label, UL, LI, Button, Input, Checkbox, Item, Variable, options } from 'alkali';
+import Todos from './Todos';
 import Todo from './Todo';
 
 // variable representing the state of editing each row
@@ -23,26 +24,26 @@ class TodoView extends Div('#todo', [
 					placeholder: 'What needs to be done?',
 					// we can variables for any property; when we use a variable in a user-input
 					// driven property, the binding is bi-directional
-					value: Todo.property('newItem')
+					value: Todos.property('newItem')
 				})
 			], {
 				onsubmit(event) {
 					event.preventDefault()
-					Todo.for(this).add() // add a new todo when the user submits
+					Todos.for(this).add() // add a new todo when the user submits
 				}
 			})
 		]),
 		Section('#main', [
 			Checkbox('#toggle-all', {
-				checked: Todo.allCompleted
+				checked: Todos.allCompleted
 			}),
 			Label,
 			UL('#todo-list', {
-				content: Todo.listView,
+				content: Todos.listView,
 				each: LI('.task', [
-					Checkbox('.toggle', Item.property('completed')),
-					Label('.view', [Item.property('name')], {
-						textDecoration: react(Item.completed ? 'line-through' : 'none'),
+					Checkbox('.toggle', Todo.property('completed')),
+					Label('.view', [Todo.property('name')], {
+						textDecoration: react(Todo.completed ? 'line-through' : 'none'),
 						display: react(Editing ? 'none' : 'block'),
 						ondblclick() {
 							let editing = Editing.for(this);
@@ -52,12 +53,12 @@ class TodoView extends Div('#todo', [
 					}),
 					Input('.edit', {
 						display: Editing,
-						value: Item.property('name'),
+						value: Todo.property('name'),
 						onblur() { Editing.for(this).put(false); },
 						onchange() { Editing.for(this).put(false); }
 					}),
 					Button('.destroy', {
-						onclick: Todo.delete
+						onclick: Todos.delete
 					})
 				], {
 					hasOwn: Editing
@@ -65,8 +66,8 @@ class TodoView extends Div('#todo', [
 			})
 		]),
 		Footer('#footer', [
-			Span('#todo-count', react(Todo.todoCount + (Todo.todoCount > 1 ? ' items left' : ' item left')), {
-				display: react(Todo.todoCount > 0)
+			Span('#todo-count', react(Todos.todoCount + (Todos.todoCount > 1 ? ' items left' : ' item left')), {
+				display: react(Todos.todoCount > 0)
 			}),
 			UL('#filters', [
 				LI, [
@@ -86,7 +87,7 @@ class TodoView extends Div('#todo', [
 				],
 			]),
 			Button('#clear-completed', 'Clear completed', {
-				onclick: Todo.clearCompleted
+				onclick: Todos.clearCompleted
 			})
 		])
 	]),

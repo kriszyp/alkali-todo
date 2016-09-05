@@ -23,4 +23,5 @@ let TodoList = Variable({
 		this.splice(this.valueOf().indexOf(item), 1);
 	}
 })
+
 export default TodoList;

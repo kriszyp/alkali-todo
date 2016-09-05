@@ -54,7 +54,7 @@
 
 	var _TodoView2 = _interopRequireDefault(_TodoView);
 
-	var _benchmark = __webpack_require__(12);
+	var _benchmark = __webpack_require__(13);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -109,6 +109,9 @@
 		main.Copy = Copy
 		main.Element = Element
 		main.Variable = Variable
+		main.VMap = Variable.VMap
+		main.VArray = Variable.VArray
+		main.VPromised = Variable.VPromised
 		main.all = Variable.all
 		main.react = react
 		main.spawn = function(func) {
@@ -137,10 +140,8 @@
 				return (constructor.displayName || constructor.name) === 'GeneratorFunction'
 			}
 		}
-		function Context(subject){
-			this.subject = subject
-		}
 
+		var Context = Variable.Context
 		var PropertyRenderer = Renderer.PropertyRenderer
 		var InputPropertyRenderer = Renderer.InputPropertyRenderer
 		var AttributeRenderer = Renderer.AttributeRenderer
@@ -231,7 +232,7 @@
 		}
 
 		var styleDefinitions = {
-			display: booleanStyle(['initial', 'none']),
+			display: booleanStyle(['', 'none']),
 			visibility: booleanStyle(['visible', 'hidden']),
 			color: directStyle,
 			opacity: directStyle,
@@ -281,44 +282,36 @@
 			for(var i = 0, l = children.length; i < l; i++) {
 				var child = children[i]
 				var childNode
-				if (child && child.create) {
-					// an element constructor
-					currentParent = parent
-					childNode = child.create()
-					fragment.appendChild(childNode)
-					if (child.isContentNode) {
-						container.contentNode = childNode
-					}
-				} else if (typeof child == 'function') {
-					// TODO: reenable this
-	//				if (child.for) {
-						// a variable constructor that can be contextualized
-		//				fragment.appendChild(variableAsText(parent, child))
-			//		} else {
+				if (child != null) { // we just skip nulls and undefined, helps make it easier to write conditional element logic
+					if (child.create) {
 						// an element constructor
-						childNode = new child()
+						currentParent = parent
+						childNode = child.create()
 						fragment.appendChild(childNode)
-				//	}
-				} else if (typeof child == 'object') {
-					if (child instanceof Array) {
-						// array of sub-children
-						container = container || parent
-						childNode = childNode || parent
-						layoutChildren(childNode.contentNode || childNode, child, container)
+						if (child.isContentNode) {
+							container.contentNode = childNode
+						}
 					} else if (child.notifies) {
 						// a variable
-						fragment.appendChild(childNode = variableAsText(parent, child))
-					} else if (child.nodeType) {
-						// an element itself
-						fragment.appendChild(childNode = child)
+						fragment.appendChild(childNode = variableAsContent(parent, child))
+					} else if (typeof child == 'object') {
+						if (child instanceof Array) {
+							// array of sub-children
+							container = container || parent
+							childNode = childNode || parent
+							layoutChildren(childNode.contentNode || childNode, child, container)
+						} else if (child.nodeType) {
+							// an element itself
+							fragment.appendChild(childNode = child)
+						} else {
+							// TODO: apply properties to last child, but with binding to the parent (for events)
+							throw new Error('Unknown child type ' + child)
+						}
 					} else {
-						// TODO: apply properties to last child, but with binding to the parent (for events)
-						throw new Error('Unknown child type ' + child)
+						// a primitive value
+						childNode = doc.createTextNode(child)
+						fragment.appendChild(childNode)
 					}
-				} else {
-					// a primitive value
-					childNode = doc.createTextNode(child)
-					fragment.appendChild(childNode)
 				}
 			}
 			if (fragment != parent) {
@@ -330,23 +323,20 @@
 			}
 			return childNode
 		}
-		function variableAsText(parent, content) {
+		function variableAsContent(parent, content) {
 			if (content == null) {
 				return doc.createTextNode('')
 			}
-			var text
-			try {
-				text = content.valueOf(new Context(parent))
-			} catch (error) {
-				text = error.stack
-			}
-			var textNode = doc.createTextNode(text)
+			var textNode
 			if (content.notifies) {
+				textNode = doc.createTextNode('')
 				enterRenderer(TextRenderer, {
 					element: parent,
 					textNode: textNode,
 					variable: content
 				})
+			} else {
+				textNode = doc.createTextNode(content)
 			}
 			return textNode
 		}
@@ -366,7 +356,12 @@
 					// use the deferred <select> value assignment
 					InputPropertyRenderer.prototype.renderSelectValueUpdate(value, element)
 				} else {
-					InputPropertyRenderer.prototype.renderUpdate(value, element)
+					if (element.type === 'number') {
+						if (isNaN(value)) {
+							value = ''
+						}
+					}
+					element[key] = value
 				}
 			}
 		}
@@ -481,7 +476,7 @@
 			}
 		}
 
-		function applyProperties(element, properties) {
+		function assignProperties(element, properties) {
 			for (var key in properties) {
 				var value = properties[key]
 				var styleDefinition = styleDefinitions[key]
@@ -523,34 +518,18 @@
 			})
 		}
 
-		nextClassId = 1
-		uniqueSelectors = {}
-		function getUniqueSelector(element) {
-			var selector = element.hasOwnProperty('_uniqueSelector') ? element._uniqueSelector :
-				(element._tag + (element._class ? '.' + element._class.replace(/\s+/g, '.') : '') +
-				(element._id ? '#' + element._id : ''))
-			if (!selector.match(/[#\.-]/)) {
-				if (uniqueSelectors[selector]) {
-					element._class = '.x-' + nextClassId++
-					selector = getUniqueSelector(element)
-				} else {
-					uniqueSelectors[selector] = selector
-				}
-			}
-			return selector
-		}
-
 		function buildContent(element, content, key, properties) {
 			var each = element.each || properties.each
 			if (each && content) {
 				// render as list
 				if (each.create) {
-					var ItemClass = element.itemAs || Item
-					hasOwn(each, ItemClass, function (element) {
-						var itemVariable = ItemClass.for(element._item)
-						itemVariable.collection = content
-						return itemVariable
-					})
+					each.defineHasOwn = function () {
+						var ItemClass = content.getCollectionOf && content.getCollectionOf() || Item
+						hasOwn(each, ItemClass, function (element) {
+							var itemVariable = ItemClass.from(element._item)
+							return itemVariable
+						})
+					}
 				}
 				if (content.notifies) {
 					enterRenderer(ListRenderer, {
@@ -560,6 +539,9 @@
 					})
 				} else {
 					var fragment = doc.createDocumentFragment()
+					if (each.defineHasOwn) {
+						each.defineHasOwn()
+					}
 					content.forEach(function(item) {
 						if (each.create) {
 							childElement = each.create({parent: element, _item: item}) // TODO: make a faster object here potentially
@@ -579,7 +561,7 @@
 				layoutChildren(element, content, element)
 			} else {
 				// render as string
-				element.appendChild(variableAsText(element, content))
+				element.appendChild(variableAsContent(element, content))
 			}
 		}
 
@@ -889,8 +871,11 @@
 					}
 				}
 			}
-			// TODO: inline this
-			applyProperties(element, applyOnCreate)
+			if (element.created) {
+				applyOnCreate = element.created(applyOnCreate) || applyOnCreate
+			}
+			// TODO: inline this for better performance, possibly
+			assignProperties(element, applyOnCreate)
 			if (this.children) {
 				layoutChildren(element, this.children, element)
 			}
@@ -898,8 +883,7 @@
 			if (applyOnCreate.content) {
 				buildContent(element, applyOnCreate.content, 'content', applyOnCreate)
 			}
-			element.createdCallback && element.createdCallback()
-			element.created && element.created(applyOnCreate)
+			element.ready && element.ready(applyOnCreate)
 			return element
 		}
 
@@ -926,7 +910,7 @@
 		var Element = withProperties.call(typeof HTMLElement !== 'undefined' ? HTMLElement : function() {})
 
 		Element.registerTag = registerTag
-		Element.applyProperties = applyProperties
+		Element.assign = assignProperties
 
 		Element.within = function(element){
 			// find closest child
@@ -1150,11 +1134,10 @@
 					hasOwn(From, Target)
 				})
 			}
-			var ownedClasses = From.ownedClasses || (From.ownedClasses = new WeakMap())
-			// TODO: assign to super classes
-			ownedClasses.set(Target, createInstance || function() {
-				return new Target()
-			})
+			var instanceMap = new WeakMap()
+			instanceMap.createInstance = createInstance
+			var elementMap = From.ownedClasses || (From.ownedClasses = new WeakMap())
+			elementMap.set(Target, instanceMap)
 			return From
 		}
 
@@ -1183,10 +1166,19 @@
 				ThisElementVariable = this._Variable = Variable()
 
 				hasOwn(this, ThisElementVariable, function(element) {
-					// when we create the instance, immediately observe it
 					// TODO: we might want to do this in init instead
-					var instance = new ThisElementVariable(element)
-					instance.observeObject()
+					var variableProperties = {}
+					for (var i = 0; i < element.updaters.length; i++){
+						var updater = element.updaters[i]
+						if (updater.name) {
+							variableProperties[updater.name] = {value: updater.variable}
+						}
+					}
+
+					var elementOverlay = Object.create(element, variableProperties)
+					var instance = new ThisElementVariable(elementOverlay)
+					// we are not observing, because you can't delegate getters and setters in safari
+					// instance.observeObject()
 					return instance
 				})
 			}
@@ -1344,6 +1336,88 @@
 				subtree: true
 			})
 		}
+		
+		lang.copy(Variable.Context.prototype, {
+			specify: function(Variable) {
+				var element = this.subject
+			  var distinctive = true
+			  ;(this.generics || (this.generics = [])).push(Variable)
+			  do {
+			    if (this.distinctSubject === element) {
+			      distinctive = false
+			    }
+			    var subjectMap = element.constructor.ownedClasses
+			    if (subjectMap) {
+						var instanceMap = subjectMap.get(Variable)
+						if (instanceMap) {
+				      if (distinctive) {
+				        this.distinctSubject = element
+				      }
+							specifiedInstance = instanceMap.get(element)
+							if (!specifiedInstance) {
+								instanceMap.set(element, specifiedInstance = instanceMap.createInstance ?
+									instanceMap.createInstance(element) : new Variable())
+							}
+							return specifiedInstance
+						}
+			    }
+			  } while ((element = element.parentNode || presumptiveParentMap.get(element)))
+				// else if no specific context is found, return default instance
+				return Variable.defaultInstance
+			},
+
+			getContextualized: function(variable) {
+				// returns a variable that has already been contextualized
+				var element = this.subject
+				if (!element) {
+					// no element, just use the default variable
+					return variable
+				}
+				if (variable._contextMap) {
+					do {
+						var instance = variable._contextMap.get(element)
+						if (instance && instance.context.matches(element)) {
+							return instance
+						}
+					} while ((element = element.parentNode || presumptiveParentMap.get(element)))
+				}
+				if (variable.context && variable.context.matches(this.subject)) {
+					// check if the default variable is allowed
+					return variable
+				}
+			},
+
+			merge: function(childContext) {
+			  if (!this.distinctSubject || this.distinctSubject.contains(childContext.distinctSubject)) {
+			    this.distinctSubject = childContext.distinctSubject
+			  }
+			  [].push.apply(this.generics || (this.generics = []), childContext.generics)
+			},
+			getDistinctElement: function(Variable, element) {
+			  do {
+			    var subjectMap = element.constructor.ownedClasses
+			    if (subjectMap) {
+						var instanceMap = subjectMap.get(Variable)
+						if (instanceMap && instanceMap.has(element)) {
+							return element
+						}
+			    }
+			  } while ((element = element.parentNode || presumptiveParentMap.get(element)))
+			},
+			matches: function(element) {
+				var generics = this.generics
+				if (generics) {
+					for (var i = 0, l = generics.length; i < l; i++) {
+						if (this.getDistinctElement(generics[i], element) !== this.distinctSubject) {
+							return false
+						}
+					}
+				}
+				return true
+			}
+		})
+		
+
 
 		return Element
 	}.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__), __WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__))
@@ -1362,6 +1436,7 @@
 		// update types
 		var ToParent = 2
 		var RequestChange = 3
+		var RequestSet = 4
 		
 		var ToChild = Object.freeze({
 			type: 'refresh'
@@ -1377,32 +1452,6 @@
 		})
 		var listenerId = 1
 
-		function mergeSubject(context) {
-			for (var i = 1, l = arguments.length; i < l; i++) {
-				var nextContext = arguments[i]
-				if (nextContext !== context && (!context || nextContext && context.contains && context.contains(nextContext))) {
-					context = nextContext
-				}
-			}
-			return context
-		}
-
-		function getMaterializedContextualInstance(variable, context) {
-			var subject = context && (context.distinctSubject || context.subject)
-			if (typeof variable === 'function') {
-				return variable.for(subject)
-			}
-			var contextMap = variable.contextMap
-			if (context && contextMap) {
-				while(subject && !contextMap.has(subject)) {
-					subject = subject.parentNode
-				}
-				if (!subject) {
-					subject = defaultContext
-				}
-				return contextMap.get(subject)
-			}
-		}
 		function when(value, callback) {
 			if (value && value.then) {
 				return value.then(callback)
@@ -1412,10 +1461,98 @@
 
 		function Context(subject){
 			this.subject = subject
+			this.inputs = []
 		}
+		Context.prototype = {
+			constructor: Context,
+			newContext: function(variable) {
+				return new Context(this.subject)
+			},
+			contextualize: function(variable, parentContext) {
+				// resolve the contextualization of a variable, and updates this context to be aware of what distinctive aspect of the context has
+				// been used for resolution
+				var contextualized
+				if (this.distinctSubject) {
+					var contextMap = variable._contextMap || (variable._contextMap = new WeakMap())
+					contextualized = contextMap.get(this.distinctSubject)
+					if (!contextualized) {
+						contextMap.set(this.distinctSubject, contextualized = Object.create(variable))
+						contextualized.listeners = false
+						contextualized.context = this
+						var inputs = this.inputs
+						for (var i = 0, l = inputs.length; i < l; i++) {
+							contextualized[inputs[i]] = inputs[++i]
+						}
+					}
+					this.contextualized = contextualized
+					// do the merge
+					if (parentContext) {
+						parentContext.merge(this)
+					}
+				} else {
+					contextualized = variable
+				}
+				//if (this.contextualized && this.contextualized !== contextualized) {
+					// TOOD: if it has previously been contextualized to a different context (can happen in a promise/async situation), stop previous notifiers and start new ones
+				//}
+				parentContext.addInput(contextualized)
+				return contextualized
+			},
+			merge: function(childContext) {
+				if (!this.distinctSubject) {
+					this.distinctSubject = childContext.distinctSubject
+				}
+			},
+			specify: function(Variable) {
+				// specify a particular instance of a generic variable
+				var subject = this.subject
+				var subjectMap = subject.constructor.ownedClasses
+				var specifiedInstance
+				if (subjectMap) {
+					if (!this.distinctSubject) {
+		        this.distinctSubject = subject
+					}
+					var instanceMap = subjectMap.get(Variable)
+					if (instanceMap) {
+						specifiedInstance = instanceMap.get(subject)
+						if (!specifiedInstance) {
+							instanceMap.set(subject, specifiedInstance = instanceMap.createInstance ? instanceMap.createInstance(subject) : new Variable())
+						}
+						return specifiedInstance
+					}
+				}
+				// else if no specific context is found, return default instance
+				return Variable.defaultInstance
+			},
+			getContextualized: function(variable) {
+
+				// returns a variable that has already been contextualized
+				var instance = variable._contextMap && this.subject && variable._contextMap.get(this.subject)
+				if (instance && instance.context && instance.context.matches(this)) {
+					return instance
+				}
+			},
+			addInput: function(inputVariable) {
+				this.inputs.push(this.nextProperty, inputVariable)
+			},
+			matches: function(context) {
+				// does another context match the resolution of this one?
+				return context.subject === this.subject
+			}
+		}
+
+		function NotifyingContext(listener, subject){
+			this.subject = subject
+			this.listener = listener
+		}
+		NotifyingContext.prototype = Object.create(Context.prototype)
+		NotifyingContext.prototype.constructor = NotifyingContext
+		NotifyingContext.prototype.addInput = function(contextualized) {
+			contextualized.notifies(this.listener)
+		}
+
 		function whenAll(inputs, callback){
 			var promiseInvolved
-			var needsContext
 			for (var i = 0, l = inputs.length; i < l; i++) {
 				if (inputs[i] && inputs[i].then) {
 					promiseInvolved = true
@@ -1486,6 +1623,20 @@
 		}
 		DeleteEvent.prototype.type = 'delete'
 
+		function forPropertyNotifyingValues(properties, callback) {
+			for (var key in properties) {
+				var property = properties[key]
+				if (property.returnedVariable) {
+					callback(property.returnedVariable)
+				}
+				if (property.hasChildNotifiers) {
+					var subProperties = property._properties
+					if (subProperties) {
+						forPropertyNotifyingValues(subProperties, callback)
+					}
+				}
+			}
+		}
 
 		function Variable(value) {
 			if (this instanceof Variable) {
@@ -1496,43 +1647,65 @@
 			}
 		}
 		var VariablePrototype = Variable.prototype = {
+			// for debugging use
+			get currentValue() {
+				return this.valueOf()
+			},
+			set currentValue(value) {
+				this.put(value)
+			},
 			constructor: Variable,
 			valueOf: function(context) {
-				if (this.subject) {
-					var variable = this
-					context = new Context(this.subject)
-				}
-				return this.gotValue(this.getValue(context), context)
+				var valueContext
+				return this.gotValue(this.getValue ?
+					this.getValue(context && (valueContext = context.newContext())) :
+					this.value, context, valueContext)
 			},
-			getValue: function() {
-				return this.value
-			},
-			gotValue: function(value, context) {
-				var previousNotifyingValue = this.notifyingValue
+			gotValue: function(value, parentContext, context) {
+				var previousNotifyingValue = this.returnedVariable
 				var variable = this
-				if (value && value.then) {
-					return when(value, function(value) {
-						return Variable.prototype.gotValue.call(variable, value, context)
-					})
-				}
 				if (previousNotifyingValue) {
 					if (value === previousNotifyingValue) {
 						// nothing changed, immediately return valueOf (or ownObject if we have it)
-						return variable.ownObject || value.valueOf(context)
+						if (variable.ownObject) {
+							return variable.ownObject
+						}
+						if (parentContext) {
+							if (!context) {
+								context = parentContext.newContext()
+							}
+							context.contextualize(this, parentContext)
+							context.nextProperty = 'returnedVariable'
+							return value.valueOf(context)
+						} else {
+							return value.valueOf()
+						}
 					}
 					// if there was a another value that we were dependent on before, stop listening to it
 					// TODO: we may want to consider doing cleanup after the next rendering turn
-					if (variable.dependents) {
+					if (variable.listeners) {
 						previousNotifyingValue.stopNotifies(variable)
 					}
-					variable.notifyingValue = null
+					variable.returnedVariable = null
 				}
 				if (value && value.notifies) {
-					if (variable.dependents) {
-							// the value is another variable, start receiving notifications
+					variable.returnedVariable = value
+					if (variable.listeners) {
 						value.notifies(variable)
 					}
-					variable.notifyingValue = value
+					/*var parent = variable
+					do {
+						if (parent.listeners) {
+							// the value is another variable, start receiving notifications, if we, or any parent is live
+							variable.returnedVariable.notifies(variable)
+							break
+						}
+						parent.hasNotifyingChild = true
+					} while((parent = parent.parent))*/
+					context = context || parentContext && (context = parentContext.newContext())
+					if (context) {
+						context.nextProperty = 'returnedVariable'
+					}
 					value = value.valueOf(context)
 					if (variable.ownObject) {
 						if (getPrototypeOf(variable.ownObject) !== value) {
@@ -1543,6 +1716,25 @@
 				}
 				if (value === undefined) {
 					value = variable.default
+				}
+				if (context) {
+					context.contextualize(this, parentContext)
+				}
+				if (parentContext) {
+
+					/*if (!contextualized.listeners) {
+						// mark it as initialized, since we have already recursively dependended on inputs
+						contextualized.listeners = []
+					}*/
+
+					if (!context) {
+						parentContext.addInput(this)
+					}				
+				}
+				if (value && value.then) {
+					return when(value, function(value) {
+						return Variable.prototype.gotValue.call(variable, value, context)
+					})
 				}
 				return value
 			},
@@ -1569,48 +1761,7 @@
 					// makes HTML events work
 					subject = subject.target
 				}
-				if (typeof this === 'function') {
-					// this is a class, the subject should hopefully have an entry
-					if (subject !== undefined) {
-						var instance
-						if (subject.constructor.getForClass) {
-							// if the subject has it is own means of retrieving an instance
-							instance = subject.constructor.getForClass(subject, this)
-							if (instance && !instance.subject) {
-								instance.subject = subject
-							}
-						} else {
-							if (subject && typeof subject === 'object') {
-								// a plain object, we use our own map to retrieve the instance (or create one)
-								var instanceMap = this.instanceMap || (this.instanceMap = new WeakMap())
-								instance = instanceMap.get(subject)
-								if (!instance) {
-									instanceMap.set(subject, instance = new this(subject))
-								}
-							} else {
-								// a primitive, just unconditionally create a new variable for it
-								instance = new this(subject)
-							}
-						}
-						// TODO: Do we have a global context that we set on defaultInstance?
-						return instance || this.defaultInstance
-					} else {
-						return this.defaultInstance
-					}
-				}
 				return new ContextualizedVariable(this, subject || defaultContext)
-			},
-			distinctFor: function(subject) {
-				if (typeof this === 'function') {
-					return this.for(subject)
-				}
-				var map = this.contextMap || (this.contextMap = new WeakMap())
-				if (map.has(subject)) {
-					return map.get(subject)
-				}
-				var contextualizedVariable
-				map.set(subject, contextualizedVariable = new ContextualizedVariable(this, subject))
-				return contextualizedVariable
 			},
 			_propertyChange: function(propertyName, object, context, type) {
 				if (this.onPropertyChange) {
@@ -1630,18 +1781,22 @@
 				return this.apply(instance, Array.prototype.slice.call(arguments, 1))
 			},
 			forDependencies: function(callback) {
-				if (this.notifyingValue) {
-					callback(this.notifyingValue)
+				if (this.returnedVariable) {
+					callback(this.returnedVariable)
+				}
+				if (this.hasNotifyingChild) {
+					var properties = this._properties
+					if (properties) {
+						forPropertyNotifyingValues(properties, callback)
+					}
 				}
 			},
 			init: function() {
-				if (this.subject) {
-					this.constructor.notifies(this)
-				}
 				var variable = this
 				this.forDependencies(function(dependency) {
 					dependency.notifies(variable)
 				})
+
 				if (this.listeningToObject === null) {
 					// we were previously listening to an object, but it needs to be restored
 					// calling valueOf will cause the listening object to be restored
@@ -1649,6 +1804,7 @@
 				}
 			},
 			cleanup: function() {
+				this.listeners = false
 				var handles = this.handles
 				if (handles) {
 					for (var i = 0; i < handles.length; i++) {
@@ -1656,8 +1812,8 @@
 					}
 				}
 				this.handles = null
-				var notifyingValue = this.notifyingValue
-				if (notifyingValue) {
+				var returnedVariable = this.returnedVariable
+				if (returnedVariable) {
 					// TODO: move this into the caching class
 					this.computedVariable = null
 				}
@@ -1665,9 +1821,6 @@
 				this.forDependencies(function(dependency) {
 					dependency.stopNotifies(variable)
 				})
-				if (this.context) {
-					this.constructor.stopNotifies(this)
-				}
 			},
 
 			updateVersion: function(version) {
@@ -1675,7 +1828,7 @@
 			},
 
 			getVersion: function(context) {
-				return Math.max(this.version || 0, this.notifyingValue && this.notifyingValue.getVersion ? this.notifyingValue.getVersion(context) : 0)
+				return Math.max(this.version || 0, this.returnedVariable && this.returnedVariable.getVersion ? this.returnedVariable.getVersion(context) : 0)
 			},
 
 			getSubject: function(selectVariable) {
@@ -1706,18 +1859,7 @@
 					return
 				}
 				updateEvent.visited.add(this)
-				if (this.subject) {
-					if (by === this.constructor) {
-						// if we receive an update from the constructor, filter it
-						if (!(!context || (context.distinctSubject || context.subject) === this.subject || (context.subject.contains && this.subject.nodeType && context.subject.contains(this.subject)))) {
-							return
-						}
-					} else {
-						// if we receive an outside update, send it to the constructor
-						return this.constructor.updated(updateEvent, this, new Context(this.subject))
-					}
-				}
-				var contextualInstance = getMaterializedContextualInstance(this, context)
+				var contextualInstance = context ? context.getContextualized(this) : this
 				if (contextualInstance) {
 					contextualInstance.updated(updateEvent, this, context)
 				}
@@ -1733,32 +1875,27 @@
 				this.updateVersion()
 				var value = this.value
 
-				var dependents = this.dependents
-				if (dependents) {
+				var listeners = this.listeners
+				if (listeners) {
+					var variable = this
 					// make a copy, in case they change
-					dependents = dependents.slice(0)
-					for (var i = 0, l = dependents.length; i < l; i++) {
-						try{
-							var dependent = dependents[i]
-							if ((updateEvent instanceof PropertyChangeEvent) &&
-									(dependent instanceof Property)) {
-								if (dependent.key === updateEvent.key) {
-									dependent.updated(updateEvent.childEvent, this, context)
-								}
-							} else {
-								dependent.updated(updateEvent, this, context)
+					listeners.forEach(function(dependent) {
+						if ((updateEvent instanceof PropertyChangeEvent) &&
+								(dependent instanceof Property)) {
+							if (dependent.key === updateEvent.key) {
+								dependent.updated(updateEvent.childEvent, variable, context)
 							}
-						}catch(e) {
-							console.error(e, e.stack, 'updating a variable')
+						} else {
+							dependent.updated(updateEvent, variable, context)
 						}
-					}
+					})
 				}
 				if (updateEvent instanceof PropertyChangeEvent) {
-					if (this.notifyingValue && this.fixed) {
-						this.notifyingValue.updated(updateEvent, this, context)
+					if (this.returnedVariable && this.fixed) {
+						this.returnedVariable.updated(updateEvent, this, context)
 					}
-					if (this.collection) {
-						this.collection.updated(updateEvent, this, context)
+					if (this.constructor.collection) {
+						this.constructor.collection.updated(updateEvent, this, context)
 					}
 				}
 				return updateEvent
@@ -1770,18 +1907,12 @@
 			},
 
 			notifies: function(target) {
-				var dependents = this.dependents
-				if (!dependents || !this.hasOwnProperty('dependents')) {
-					this.dependents = dependents = []
+				var listeners = this.listeners
+				if (!listeners || !this.hasOwnProperty('listeners')) {
+					this.listeners = listeners = new Set()
 					this.init()
 				}
-				dependents.push(target)
-				var variable = this
-				return {
-					unsubscribe: function() {
-						variable.stopNotifies(target)
-					}
-				}
+				listeners.add(target)
 			},
 			subscribe: function(listener) {
 				// ES7 Observable (and baconjs) compatible API
@@ -1810,8 +1941,7 @@
 				} else {
 					throw new Error('Subscribing to an invalid listener, the listener must be a function, or have an update or next method')
 				}
-
-				var handle = this.notifies({
+				var updateReceiver = {
 					updated: function() {
 						if (updateQueued) {
 							return
@@ -1819,25 +1949,22 @@
 						updateQueued = true
 						lang.nextTurn(updated)
 					}
-				})
-				var initialValue = this.valueOf()
-				if (initialValue !== undefined) {
-					updated()
 				}
-				return handle
+				updated()
+				this.notifies(updateReceiver)
+				return {
+					unsubscribe: function() {
+						this.stopNotifies(updateReceiver)
+					}
+				}
 			},
 			stopNotifies: function(dependent) {
-				var dependents = this.dependents
-				if (dependents) {
-					for (var i = 0; i < dependents.length; i++) {
-						if (dependents[i] === dependent) {
-							dependents.splice(i--, 1)
-						}
-					}
-					if (dependents.length === 0) {
-						// clear the dependents so it will be reinitialized if it has
-						// dependents again
-						this.dependents = dependents = false
+				var listeners = this.listeners
+				if (listeners) {
+					listeners.delete(dependent)
+					if (listeners.size === 0) {
+						// clear the listeners so it will be reinitialized if it has
+						// listeners again
 						this.cleanup()
 					}
 				}
@@ -1847,7 +1974,7 @@
 				if (this.ownObject) {
 					this.ownObject = false
 				}			
-				return when(this.getValue(context), function(oldValue) {
+				return when(this.getValue ? this.getValue(context) : this.value, function(oldValue) {
 					if (oldValue === value) {
 						return noChange
 					}
@@ -1862,6 +1989,9 @@
 				})
 			},
 			get: function(key) {
+				if (this._properties && this._properties[key]) {
+					return this.property(key).valueOf()
+				}
 				return when(this.valueOf(), function(object) {
 					var value = object && (typeof object.get === 'function' ? object.get(key) : object[key])
 					if (value && value.notifies) {
@@ -1873,7 +2003,7 @@
 			},
 			set: function(key, value) {
 				// TODO: create an optimized route when the property doesn't exist yet
-				this.property(key).put(value)
+				this.property(key)._changeValue(null, RequestSet, value)
 			},
 			undefine: function(key, context) {
 				this.set(key, undefined, context)
@@ -1891,19 +2021,13 @@
 			},
 			error: function(error) {
 				// for ES7 observable compatibility
-				var dependents = this.dependents
-				if (dependents) {
+				var listeners = this.listeners
+				if (listeners) {
 					// make a copy, in case they change
-					dependents = dependents.slice(0)
-					for (var i = 0, l = dependents.length; i < l; i++) {
-						try{
-							var dependent = dependents[i]
-							// skip notifying property dependents if we are headed up the parent chain
-							dependent.error(error)
-						}catch(e) {
-							console.error(e, 'sending an error')
-						}
-					}
+					listeners.forEach(function(dependent) {
+						// skip notifying property listeners if we are headed up the parent chain
+						dependent.error(error)
+					})
 				}
 			},
 			complete: function(value) {
@@ -1920,13 +2044,18 @@
 					})
 				})
 			},
+			toJSON: function() {
+				return this.valueOf()
+			},
+			toString: function() {
+				return this.valueOf()
+			},
 			forEach: function(callbackOrItemClass, callbackOrContext, context) {
 				// iterate through current value of variable
 				if (callbackOrItemClass.notifies) {
 					var collectionVariable = this
-					this.forEach(function(item) {
-						var itemVariable = callbackOrItemClass.for(item)
-						itemVariable.collection = collectionVariable
+					return this.forEach(function(item) {
+						var itemVariable = callbackOrItemClass.from(item)
 						callbackOrContext.call(this, itemVariable)
 					}, context)
 				}
@@ -1944,7 +2073,7 @@
 			to: function (transformFunction, reverse) {
 				if (typeof transformFunction !== 'function') {
 					if (typeof transformFunction === 'object') {
-						this.to(transformFunction.forward, transformFunction.reverse)
+						this.to(transformFunction.get, transformFunction.set)
 					}
 					throw new Error('No function provided to transform')
 				}
@@ -1958,7 +2087,7 @@
 			},
 			get schema() {
 				// default schema is the constructor
-				return this.notifyingValue ? this.notifyingValue.schema : this.constructor
+				return this.returnedVariable ? this.returnedVariable.schema : this.constructor
 			},
 			set schema(schema) {
 				// but allow it to be overriden
@@ -1967,8 +2096,8 @@
 				})
 			},
 			validate: function(target, schema) {
-				if (this.notifyingValue) {
-					return this.notifyingValue.validate(target, schema)
+				if (this.returnedVariable) {
+					return this.returnedVariable.validate(target, schema)
 				}
 				if (schema.type && (schema.type !== typeof target)) {
 					return ['Target type of ' + typeof target + ' does not match schema type of ' + schema.type]
@@ -2039,6 +2168,9 @@
 					}
 				})
 			},
+			getCollectionOf: function() {
+				return this.constructor.collectionOf
+			},
 			_willModify: function(context) {
 				// an intent to modify, so we need to make sure we have our own copy
 				// of an object when necessary
@@ -2060,6 +2192,11 @@
 					})
 				}
 			},
+			_sN: function(name) {
+				// for compilers to set a name
+				this.name = name
+			},
+			// TODO: Move these to VArray
 			splice: function(startingIndex, removalCount) {
 				var args = arguments
 				return arrayToModify(this, function(array) {
@@ -2201,45 +2338,42 @@
 		}, {
 			valueOf: function(context) {
 				// first check to see if we have the variable already computed
-				if (this.cachedVersion === this.getVersion()) {
-					if (this.contextMap) {
-						var contextualizedVariable = getMaterializedContextualInstance(this, context)
-						if (contextualizedVariable) {
-							return contextualizedVariable.cachedValue
-						}
-					} else {
-						return this.cachedValue
+				var contextualizedVariable = this
+				if (context) {
+					contextualizedVariable = context.getContextualized(this)
+					if (!contextualizedVariable && this.context && this.context.matches(context)) {
+						contextualizedVariable = this
 					}
 				}
-				
-				var variable = this
+				if (contextualizedVariable && contextualizedVariable.cachedVersion === contextualizedVariable.getVersion()) {
+					if (context) {
+						context.addInput(contextualizedVariable)
+					}
+					return contextualizedVariable.cachedValue
+				}			
 
+				var variable = this
 				function withComputedValue(computedValue) {
-					if (computedValue && computedValue.notifies && variable.dependents) {
+					if (computedValue && computedValue.notifies && variable.listeners) {
 						variable.computedVariable = computedValue
 					}
-					computedValue = variable.gotValue(computedValue, watchedContext)
-					var contextualizedVariable
-					if (watchedContext && watchedContext.distinctSubject) {
-						(variable.contextMap || (variable.contextMap = new WeakMap()))
-							.set(watchedContext.distinctSubject,
-								contextualizedVariable = new ContextualizedVariable(variable, watchedContext.distinctSubject))
-						context.distinctSubject = mergeSubject(context.distinctSubject, watchedContext.distinctSubject)
-					} else {
-						contextualizedVariable = variable
-					}
+					computedValue = variable.gotValue(computedValue, context, transformContext)
+					var contextualizedVariable = transformContext && transformContext.contextualized || variable
 					contextualizedVariable.cachedVersion = newVersion
 					contextualizedVariable.cachedValue = computedValue
+					contextualizedVariable.context = transformContext
 					return computedValue
 				}
 
-				var watchedContext
+				var transformContext
 				if (context) {
-					watchedContext = new Context(context.subject)
+					transformContext = context.newContext()
 				}
 				var newVersion = this.getVersion()
-				var computedValue = this.getValue(watchedContext)
+				var computedValue = this.getValue(transformContext)
 				if (computedValue && computedValue.then) {
+					// call it initially so the dependencies can be registered
+					this.gotValue(null, context, transformContext)
 					return computedValue.then(withComputedValue)
 				} else {
 					return withComputedValue(computedValue)
@@ -2260,20 +2394,26 @@
 				callback(this.parent)
 			},
 			valueOf: function(context) {
+				if (context) {
+					var propertyContext = context.newContext()
+					propertyContext.nextProperty = 'parent'
+				}
 				var key = this.key
 				var property = this
-				var object = this.parent.valueOf(context)
+				var object = this.parent.valueOf(propertyContext)
 				function gotValueAndListen(object) {
-					if (property.dependents) {
+					var value = property.gotValue(object == null ? undefined : typeof object.get === 'function' ? object.get(key) : object[key], context, propertyContext)
+					if (property.listeners) {
 						var listeners = propertyListenersMap.get(object)
 						if (listeners && listeners.observer && listeners.observer.addKey) {
 							listeners.observer.addKey(key)
 						}
 					}
-					var value = property.gotValue(object == null ? undefined : typeof object.get === 'function' ? object.get(key) : object[key])
 					return value
 				}
 				if (object && object.then) {
+					// call it initially so the dependencies can be registered
+					this.gotValue(null, context, propertyContext)
 					return when(object, gotValueAndListen)
 				}
 				return gotValueAndListen(object)
@@ -2289,6 +2429,9 @@
 					this.parent.updated(new PropertyChangeEvent(this.key, updateEvent, this.parent), this, context)
 				}
 			},
+			for: function(subject) {
+				return this.parent.for(subject).property(this.key)
+			},
 			_changeValue: function(context, type, newValue) {
 				var key = this.key
 				var parent = this.parent
@@ -2298,20 +2441,24 @@
 					if (object == null) {
 						// nothing there yet, create an object to hold the new property
 						var response = parent.put(object = typeof key == 'number' ? [] : {}, context)
-					}else if (typeof object != 'object') {
+					} else if (typeof object != 'object') {
 						// if the parent is not an object, we can't set anything (that will be retained)
 						return deny
 					}
-					if (type == RequestChange) {
-						var oldValue = typeof object.get === 'function' ? object.get(key) : object[key]
-						if (oldValue === newValue) {
-							// no actual change to make
-							return noChange
-						}
-						if (typeof object.set === 'function') {
-							object.set(key, newValue)
+					var oldValue = typeof object.get === 'function' ? object.get(key) : object[key]
+					if (oldValue === newValue) {
+						// no actual change to make
+						return noChange
+					}
+					if (typeof object.set === 'function') {
+						object.set(key, newValue)
+					} else {
+						if (type == RequestChange && oldValue && oldValue.put) {
+							// if a put and the property value is a variable, assign it to that.
+							oldValue.put(newValue)
 						} else {
 							object[key] = newValue
+							// or set the setter/getter
 						}
 					}
 					variable.updated(null, variable, context)
@@ -2360,27 +2507,27 @@
 		}, {})
 
 		var Composite = Variable.Composite = lang.compose(Caching, function Composite(args) {
-			this.args = args
+			for (var i = 0, l = args.length; i < l; i++) {
+				this['argument' + i] = args[i]
+			}
 		}, {
 			forDependencies: function(callback) {
 				// depend on the args
 				Caching.prototype.forDependencies.call(this, callback)
-				var args = this.args
-				for (var i = 0, l = args.length; i < l; i++) {
-					var arg = args[i]
-					if (arg && arg.notifies) {
-						callback(arg)
+				var argument, argumentName
+				for (var i = 0; (argument = this[argumentName = 'argument' + i]) || argumentName in this; i++) {
+					if (argument && argument.notifies) {
+						callback(argument)
 					}
 				}
 			},
 
 			updated: function(updateEvent, by, context) {
-				var args = this.args
-				if (by !== this.notifyingValue && updateEvent && updateEvent.type !== 'refresh') {
-					// using a painful search instead of indexOf, because args may be an arguments object
-					for (var i = 0, l = args.length; i < l; i++) {
-						var arg = args[i]
-						if (arg === by) {
+				if (by !== this.returnedVariable && updateEvent && updateEvent.type !== 'refresh') {
+					// search for the output in the inputs
+					var argument, argumentName
+					for (var i = 0; (argument = this[argumentName = 'argument' + i]) || argumentName in this; i++) {
+						if (argument === by) {
 							// if one of the args was updated, we need to do a full refresh (we can't compute differential events without knowledge of how the mapping function works)
 							updateEvent = new RefreshEvent()
 							continue
@@ -2398,12 +2545,11 @@
 			},
 
 			getVersion: function(context) {
-				var args = this.args
 				var version = Variable.prototype.getVersion.call(this, context)
-				for (var i = 0, l = args.length; i < l; i++) {
-					var arg = args[i]
-					if (arg && arg.getVersion) {
-						version = Math.max(version, arg.getVersion(context))
+				var argument, argumentName
+				for (var i = 0; (argument = this[argumentName = 'argument' + i]) || argumentName in this; i++) {
+					if (argument && argument.getVersion) {
+						version = Math.max(version, argument.getVersion(context))
 					}
 				}
 				return version
@@ -2411,21 +2557,33 @@
 
 			getValue: function(context) {
 				var results = []
-				var args = this.args
-				for (var i = 0, l = args.length; i < l; i++) {
-					var arg = args[i]
-					results[i] = arg && arg.valueOf(context)
+				var argument, argumentName
+				for (var i = 0; (argument = this[argumentName = 'argument' + i]) || argumentName in this; i++) {
+					if (context) {
+						context.nextProperty = argumentName
+					}
+					results[i] = argument && argument.valueOf(context)
 				}
 				return whenAll(results, function(resolved) {
 					return resolved
 				})
+			},
+			getArguments: function() {
+				var args = []
+				var argument, argumentName
+				for (var i = 0; (argument = this[argumentName = 'argument' + i]) || argumentName in this; i++) {
+					args.push(argument)
+				}
+				return args
 			}
 		})
 
 		// a call variable is the result of a call
-		var Call = lang.compose(Composite, function Call(functionVariable, args) {
+		var Call = lang.compose(Composite, function Transform(functionVariable, args) {
 			this.functionVariable = functionVariable
-			this.args = args
+			for (var i = 0, l = args.length; i < l; i++) {
+				this['argument' + i] = args[i]
+			}
 		}, {
 			fixed: true,
 			forDependencies: function(callback) {
@@ -2437,14 +2595,17 @@
 			},
 
 			getValue: function(context) {
+				if (context) {
+					context.nextProperty = 'functionVariable'
+				}
 				var functionValue = this.functionVariable.valueOf(context)
 				if (functionValue.then) {
 					var call = this
 					return functionValue.then(function(functionValue) {
-						return call.invoke(functionValue, call.args, context)
+						return call.invoke(functionValue, context)
 					})
 				}
-				return this.invoke(functionValue, this.args, context)
+				return this.invoke(functionValue, context)
 			},
 
 			getVersion: function(context) {
@@ -2459,7 +2620,7 @@
 			execute: function(context) {
 				var call = this
 				return when(this.functionVariable.valueOf(context), function(functionValue) {
-					return call.invoke(functionValue, call.args, context, true)
+					return call.invoke(functionValue, context, true)
 				})
 			},
 
@@ -2472,31 +2633,34 @@
 					return when(call.functionVariable.valueOf(context), function(functionValue) {
 						return call.invoke(function() {
 							if (functionValue.reverse) {
-								functionValue.reverse.call(call, value, call.args, context)
+								functionValue.reverse.call(call, value, call.getArguments(), context)
 								return Variable.prototype.put.call(call, value, context)
 							} else if (originalValue && originalValue.put) {
 								return originalValue.put(value)
 							} else {
 								return deny
 							}
-						}, call.args, context)
+						}, context)
 					});				
 				})
 			},
-			invoke: function(functionValue, args, context, observeArguments) {
+			invoke: function(functionValue, context, observeArguments) {
 				var instance = this.functionVariable.parent
-				if (functionValue.handlesContext) {
-					return functionValue.apply(instance, args, context)
+				if (functionValue.handlesVariables || functionValue.property) {
+					return functionValue.apply(instance, this.getArguments(), context)
 				}else{
 					var results = []
-					for (var i = 0, l = args.length; i < l; i++) {
-						var arg = args[i]
-						results[i] = arg && arg.valueOf(context)
+					var argument, argumentName
+					for (var i = 0; (argument = this[argumentName = 'argument' + i]) || argumentName in this; i++) {
+						if (context) {
+							context.nextProperty = argumentName
+						}
+						results[i] = argument && argument.valueOf(context)
 					}
 					instance = instance && instance.valueOf(context)
 					if (functionValue.handlesPromises) {
 						return functionValue.apply(instance, results, context)
-					}else{
+					} else {
 						// include the instance in whenAll
 						results.push(instance)
 						// wait for the values to be received
@@ -2530,24 +2694,42 @@
 			setReverse: function(reverse) {
 				this.functionVariable.valueOf().reverse = reverse
 				return this
+			},
+			getCollectionOf: function() {
+				return this.returnedVariable && this.returnedVariable.getCollectionOf()
 			}
 		})
 		Variable.Call = Call
 
-		var ContextualizedVariable = lang.compose(Variable, function ContextualizedVariable(Source, subject) {
-			this.constructor = Source
+		var ContextualizedVariable = lang.compose(Variable, function ContextualizedVariable(generic, subject) {
+			this.generic = generic
 			this.subject = subject
 		}, {
 			valueOf: function() {
-				return this.constructor.valueOf(new Context(this.subject))
+				// TODO: Lookup Context type for all of these using registry or something
+				var subject = this.subject
+				return this.generic.valueOf(subject.getContextualized ? subject : new Context(subject))
+			},
+
+			forDependencies: function(callback) {
+				this.inputs && this.inputs.forEach(callback)
+			},
+
+			getVersion: function() {
+				var version = Variable.prototype.getVersion.call(this)
+				var inputs = this.inputs || 0
+				for (var i = 0, l = inputs.length; i < l; i++) {
+					var input = inputs[i]
+					if (input.getVersion) {
+						version = Math.max(version, input.getVersion())
+					}
+				}
+				return version
 			},
 
 			put: function(value) {
-				return this.constructor.put(value, new Context(this.subject))
-			},
-			parentUpdated: function(event, context) {
-				// if we receive an outside update, send it to the constructor
-				this.constructor.updated(event, this.parent, this.context)
+				var subject = this.subject
+				return this.generic.put(value, subject.getContextualized ? subject : new Context(subject))
 			}
 		})
 
@@ -2570,26 +2752,31 @@
 			this.source = source
 			// source.interestWithin = true
 			this.method = method
-			this.args = args
+			this.arguments = args
 		}, {
 			getValue: function(context) {
 				var method = this.method
-				var args = this.args
+				var args = this.arguments
 				var variable = this
+				if (context) {
+					context.nextProperty = 'source'
+				}
 				return when(this.source.valueOf(context), function(array) {
 					if (array && array.forEach) {
-						if (variable.dependents) {
+						if (context && context.notify) {
 							var contextualizedVariable
-							if (context) {
-								var contextMap = variable.contextMap || (variable.contextMap = new WeakMap())
+							if (context.distinctSubject) {
+								var contextMap = variable._contextMap || (variable._contextMap = new WeakMap())
 								if (contextMap.has(context.distinctSubject)) {
 									contextualizedVariable = contextMap.get(context.distinctSubject)
 								} else {
-									contextMap.set(context.distinctSubject, contextualizedVariable = new ContextualizedVariable(variable, context.distinctSubject))
+									contextMap.set(context.distinctSubject, contextualizedVariable = Object.create(variable))
+									contextualizedVariable.listeners = false
 								}
 							} else {
 								contextualizedVariable = variable
 							}
+							variable.notifies(contextualizedVariable)
 						}
 					} else {
 						if (method === 'map'){
@@ -2616,27 +2803,25 @@
 				}
 			},
 			filterUpdated: function(event, context) {
-				var contextualizedVariable = getMaterializedContextualInstance(this, context) || this
+				var contextualizedVariable = context ? context.getContextualized(this) : this
 				if (event.type === 'delete') {
 					var index = contextualizedVariable.cachedValue.indexOf(event.oldValue)
 					if (index > -1) {
 						contextualizedVariable.splice(index, 1)
 					}
 				} else if (event.type === 'add') {
-					if ([event.value].filter(this.args[0]).length > 0) {
+					if ([event.value].filter(this.arguments[0]).length > 0) {
 						contextualizedVariable.push(event.value)
 					}
 				} else if (event.type === 'update') {
 					var object = event.parent.valueOf(context)
 					var index = contextualizedVariable.cachedValue.indexOf(object)
-					var matches = [object].filter(this.args[0]).length > 0
+					var matches = [object].filter(this.arguments[0]).length > 0
 					if (index > -1) {
 						if (matches) {
-							return {
-								type: 'updated',
-								object: object,
-								index: index
-							}
+							return new PropertyChangeEvent(index, event, contextualizedVariable.cachedValue,
+								// might need to do something with this
+								object)
 						} else {
 							contextualizedVariable.splice(index, 1)
 						}
@@ -2652,18 +2837,18 @@
 				}
 			},
 			mapUpdated: function(event, context) {
-				var contextualizedVariable = getMaterializedContextualInstance(this, context) || this
+				var contextualizedVariable = context ? context.getContextualized(this) : this
 				if (event.type === 'delete') {
 					contextualizedVariable.splice(event.previousIndex, 1)
 				} else if (event.type === 'add') {
-					contextualizedVariable.push(this.args[0].call(this.args[1], event.value))
+					contextualizedVariable.push(this.arguments[0].call(this.arguments[1], event.value))
 				} else if (event.type === 'update') {
 					var object = event.parent.valueOf(context)
 					var array = contextualizedVariable.cachedValue
 					if (array && array.map) {
 						var index = array.indexOf(object)
-						var matches = [object].filter(this.args[0]).length > 0
-						contextualizedVariable.splice(index, 1, this.args[0].call(this.args[1], event.value))
+						var matches = [object].filter(this.arguments[0]).length > 0
+						contextualizedVariable.splice(index, 1, this.arguments[0].call(this.arguments[1], event.value))
 					} else {
 						return event
 					}
@@ -2679,14 +2864,16 @@
 			},
 			getVersion: function(context) {
 				return Math.max(Composite.prototype.getVersion.call(this, context), this.source.getVersion(context))
-			}		
+			},
+			getCollectionOf: function(){
+				return this.source.getCollectionOf()
+			}
 		})
 
 
 		var getValue
 		var GeneratorVariable = Variable.GeneratorVariable = lang.compose(Variable.Composite, function ReactiveGenerator(generator){
 			this.generator = generator
-			this.args = []
 		}, {
 			getValue: getValue = function(context, resuming) {
 				var lastValue
@@ -2704,8 +2891,7 @@
 					i = 0
 					generatorIterator = this.generator()				
 				}
-				
-				var args = this.args
+
 				do {
 					var stepReturn = generatorIterator[isThrowing ? 'throw' : 'next'](lastValue)
 					if (stepReturn.done) {
@@ -2714,19 +2900,22 @@
 					var nextVariable = stepReturn.value
 					// compare with the arguments from the last
 					// execution to see if they are the same
-					if (args[i] !== nextVariable) {
-						if (args[i]) {
-							args[i].stopNotifies(this)
+					var argumentName = 'argument' + i
+					if (this[argumentName] !== nextVariable) {
+						if (this[argumentName]) {
+							this[argumentName].stopNotifies(this)
 						}
 						// subscribe if it is a variable
 						if (nextVariable && nextVariable.notifies) {
-							nextVariable.notifies(this)
-							this.args[i] = nextVariable
+							this[argumentName] = nextVariable
 						} else {
-							this.args[i] = null
+							this[argumentName] = null
 						}
 					}
 					i++
+					if (context) {
+						context.nextProperty = argumentName
+					}
 					lastValue = nextVariable && nextVariable.valueOf(context)
 					if (lastValue && lastValue.then) {
 						// if it is a promise, we will wait on it
@@ -2772,6 +2961,7 @@
 			return new Validating(target, schemaForObject)
 		}
 		Variable.VArray = Variable
+		Variable.VPromised = Variable
 		Variable.deny = deny
 		Variable.noChange = noChange
 		function addFlag(name) {
@@ -2822,6 +3012,7 @@
 		}
 
 		function hasOwn(Target, createForInstance) {
+
 			var ownedClasses = this.ownedClasses || (this.ownedClasses = new WeakMap())
 			// TODO: assign to super classes
 			var Class = this
@@ -2888,11 +3079,12 @@
 		}
 		function instanceForContext(Class, context) {
 			if (!context) {
-				throw new TypeError('Accessing a generalized class without context to resolve to an instance, call for(context) (where context is an element or related variable instance) on your variable first')
+				return Class.defaultInstance
 			}
-			var instance = context.subject.constructor.getForClass && context.subject.constructor.getForClass(context.subject, Class) || Class.defaultInstance
-			context.distinctSubject = mergeSubject(context.distinctSubject, instance.subject)
-			return instance
+			return context.specify(Class)
+	//		var instance = context.subject.constructor.getForClass && context.subject.constructor.getForClass(context.subject, Class) || Class.defaultInstance
+	//		context.distinctSubject = mergeSubject(context.distinctSubject, instance.subject)
+	//		return instance
 		}
 		// a variable inheritance change goes through its own prototype, so classes/constructor
 		// can be used as variables as well
@@ -2901,13 +3093,79 @@
 		}
 		Variable.valueOf = function(context) {
 			// contextualized getValue
-			return instanceForContext(this, context).valueOf()
+			return instanceForContext(this, context).valueOf(context)
 		}
-		Variable.setValue = function(value, context) {
+		Variable.put = function(value, context) {
 			// contextualized setValue
-			return instanceForContext(this, context).put(value)
+			return instanceForContext(this, context).put(value, context)
 		}
-		Variable.getForClass = getForClass
+		Variable.for = function(subject) {
+			if (subject != null) {
+				if (subject.target && !subject.constructor.getForClass) {
+					// makes HTML events work
+					subject = subject.target
+				}
+				var instance
+				instance = new Context(subject).specify(this)
+				if (instance && !instance.subject) {
+					instance.subject = subject
+				}
+				// TODO: Do we have a global context that we set on defaultInstance?
+				return instance || this.defaultInstance
+			} else {
+				return this.defaultInstance
+			}
+		}
+		Variable.from = function(value) {
+			if (value && typeof value === 'object') {
+				// a plain object, we use our own map to retrieve the instance (or create one)
+				var instanceMap = this.instanceMap || (this.instanceMap = new WeakMap())
+				var instance = instanceMap.get(value)
+				if (!instance) {
+					instanceMap.set(value, instance = new this(value))
+				}
+				return instance
+			} else {
+				// a primitive, just unconditionally create a new variable for it
+				return new this(value)
+			}
+		}
+		Variable.notifies = function(target) {
+			this.defaultInstance.notifies(target)
+		}
+		Variable.stopNotifies = function(target) {
+			this.defaultInstance.stopNotifies(target)
+		}
+		Variable.getCollectionOf = function () {
+			return this.collectionOf
+		}
+		Variable.updated = function(updateEvent, by, context) {
+			return instanceForContext(this, context).updated(updateEvent, by, context)
+		}
+		Object.defineProperty(Variable, 'collectionOf', {
+			get: function() {
+				return this._collectionOf
+			},
+			set: function(ItemClass) {
+				if (this._collectionOf != ItemClass) {
+					this._collectionOf = ItemClass
+					ItemClass.collection = this
+				}
+			}
+		})
+		Object.defineProperty(Variable, 'collection', {
+			get: function() {
+				return this._collection
+			},
+			set: function(Collection) {
+				if (this._collection != Collection) {
+					this._collection = Collection
+					Collection.collectionOf = this
+				}
+			}
+		})
+		Variable.Context = Context
+		Variable.NotifyingContext = NotifyingContext
 		Variable.generalize = generalizeClass
 		Variable.call = Function.prototype.call // restore these
 		Variable.apply = Function.prototype.apply
@@ -2916,7 +3174,7 @@
 			var Base = this
 			function ExtendedVariable() {
 				if (this instanceof ExtendedVariable) {
-					return Base.apply(this, arguments)
+					Base.apply(this, arguments)
 				} else {
 					return ExtendedVariable.extend(properties)
 				}
@@ -2943,13 +3201,15 @@
 						this._defaultInstance)
 			}
 		})
-		Variable.hasOwn = hasOwn
+		Variable.hasOwn = function(Target, createInstance) {
+			var instanceMap = new WeakMap()
+			instanceMap.createInstance = createInstance
+			var subjectMap = this.ownedClasses || (this.ownedClasses = new WeakMap())
+			subjectMap.set(Target, instanceMap)
+		}
 		Variable.all = all
 		Variable.objectUpdated = objectUpdated
-		Variable.observe = function() {
-			throw new Error('Use variable.observeObject() instead')
-		}
-
+		
 		return Variable
 	}.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__), __WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__))
 
@@ -3345,54 +3605,53 @@
 /* 6 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(5)], __WEBPACK_AMD_DEFINE_RESULT__ = function (lang, Variable) {
+	var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(5), __webpack_require__(4)], __WEBPACK_AMD_DEFINE_RESULT__ = function (lang, Variable) {
 		var doc = typeof document !== 'undefined' && document
 		var invalidatedElements
 		var queued
 		var toRender = []
 		var nextId = 1
 		var requestAnimationFrame = lang.requestAnimationFrame
-
-		function Context(subject){
-			this.subject = subject
-		}
+		var Context = Variable.Context
 
 		function Renderer(options) {
 			var variable = options.variable
 
 			this.variable = variable
 			this.elements = []
-			if (options) {
-				if (options.selector) {
-					this.selector = options.selector
-				}
-				if (options.elements) {
-					this.elements = options.elements
-					this.element = this.elements[0]
-				}
-				if (options.element) {
-					this.element = options.element
-					this.elements.push(options.element)
-				}
-				for(var i = 0, l = this.elements.length; i < l; i++) {
-					(this.elements[i].alkaliRenderers || (this.elements[i].alkaliRenderers = [])).push(this)
-				}
-				if (options.update) {
-					this.updateRendering = options.update
-				}
-				if (options.shouldRender) {
-					this.shouldRender = options.shouldRender
-				}
-				if (options.renderUpdate) {
-					this.renderUpdate = options.renderUpdate
-				}
-				if (options.alwaysUpdate) {
-					this.alwaysUpdate = options.alwaysUpdate
-				}
+			if (options.selector) {
+				this.selector = options.selector
+			}
+			if (options.elements) {
+				this.elements = options.elements
+				this.element = this.elements[0]
+			}
+			else if (options.element) {
+				this.element = options.element
+				this.elements.push(options.element)
+			} else {
+				throw new Error('No element provided to Renderer')
+			}
+			for(var i = 0, l = this.elements.length; i < l; i++) {
+				(this.elements[i].alkaliRenderers || (this.elements[i].alkaliRenderers = [])).push(this)
+			}
+			if (options.update) {
+				this.updateRendering = options.update
+			}
+			if (options.shouldRender) {
+				this.shouldRender = options.shouldRender
+			}
+			if (options.renderUpdate) {
+				this.renderUpdate = options.renderUpdate
+			}
+			if (options.alwaysUpdate) {
+				this.alwaysUpdate = options.alwaysUpdate
 			}
 			if (variable.updated) {
 				// if it has update, we don't need to instantiate a closure
-				variable.notifies(this)
+				if (options.updateOnStart === false) {
+					variable.notifies(this)
+				}
 			} else {
 				// baconjs-esqe API
 				var renderer = this
@@ -3407,7 +3666,7 @@
 					renderer.updated()
 				})
 			}
-			if(options && options.updateOnStart !== false){
+			if (options.updateOnStart !== false){
 				this.updateRendering(true)
 			}
 		}
@@ -3428,6 +3687,22 @@
 						})
 					}
 				}
+			},
+			newContext: function() {
+				return new Variable.Context(this.element)
+			},
+			addInput: function(variable) {
+				this.contextualized = variable
+			},
+			getContextualized: function() {
+				return this.contextualized
+			},
+			specify: function(Variable) {
+				// a new context to get thsi
+				return this.newContext().specify(Variable)
+			},
+			merge: function(){
+				// noop
 			},
 			contextMatches: function(context) {
 				return true
@@ -3521,12 +3796,16 @@
 		ElementRenderer.prototype.updateElement = function(element) {
 			this.invalidated = false
 			try {
-				// TODO: might make something cheaper than for(element) for setting context?
-				var value = !this.omitValueOf && this.variable.valueOf(new Context(element))
+				if (!this.omitValueOf) {
+					var value = this.variable.valueOf(this)
+					var contextualized = this.contextualized || this.variable
+					// TODO: we may need to handle recontextualization if it returns a promise
+					contextualized.notifies(this)
+				}
 			} catch (error) {
 				element.appendChild(document.createTextNode(error))
 			}
-			if(value !== undefined || this.started){
+			if(value !== undefined || this.started || this.omitValueOf){
 				this.started = true
 				if(value && value.then){
 					if(this.renderLoading){
@@ -3641,10 +3920,22 @@
 		}
 		TextRenderer.prototype = Object.create(ElementRenderer.prototype)
 		TextRenderer.prototype.type = 'TextRenderer'
+		TextRenderer.prototype.updated = function (updateEvent, context) {
+			if (this.builtList) {
+				if (updateEvent.type === 'refresh') {
+					this.builtList = false
+					this.omitValueOf = false
+				} else {
+					(this.updates || (this.updates = [])).push(updateEvent)
+				}
+			}
+			ElementRenderer.prototype.updated.call(this, updateEvent, context)
+		}
 		TextRenderer.prototype.renderUpdate = function (newValue, element) {
 			if (newValue == null){
 				newValue = ''
-			} else if (newValue.nodeType) {
+			}
+			if (newValue.nodeType) {
 				if (this.textNode && this.textNode.parentNode == element) {
 					// text node is attached, we can replace it with the node
 					element.replaceChild(newValue, this.textNode)
@@ -3652,9 +3943,13 @@
 					element.appendChild(newValue)
 				}
 				this.textNode = newValue
-				return
+			} else if (newValue instanceof Array) {
+				this.renderUpdate = ListRenderer.prototype.renderUpdate
+				this.omitValueOf = true
+				this.renderUpdate(newValue, element)
+			} else {
+				(this.textNode || element.childNodes[this.position]).nodeValue = newValue
 			}
-			(this.textNode || element.childNodes[this.position]).nodeValue = newValue
 		}
 		Renderer.TextRenderer = TextRenderer
 
@@ -3666,23 +3961,39 @@
 		}
 		ListRenderer.prototype = Object.create(ElementRenderer.prototype)
 		ListRenderer.prototype.updated = function (updateEvent, context) {
-			(this.updates || (this.updates = [])).push(updateEvent)
+			if (this.builtList) {
+				if (updateEvent.type === 'refresh') {
+					this.builtList = false
+					this.omitValueOf = false
+				} else {
+					(this.updates || (this.updates = [])).push(updateEvent)
+				}
+			}
 			ElementRenderer.prototype.updated.call(this, updateEvent, context)
 		}
 		ListRenderer.prototype.type = 'ListRenderer'
-		ListRenderer.prototype.omitValueOf = true
 		ListRenderer.prototype.renderUpdate = function (newValue, element) {
 			var container
-			var each = this.each
+			var each = this.each || function(item) { // TODO: make a single identity function
+				return item
+			}
 			var thisElement = this.elements[0]
 			var renderer = this
 			if (!this.builtList) {
 				this.builtList = true
+				this.omitValueOf = true
+				element.innerHTML = ''
 				container = document.createDocumentFragment()
 				var childElements = this.childElements = []
-				this.variable.for(thisElement).forEach(function(item) {
+				if (each.defineHasOwn) {
+					each.defineHasOwn()
+				}
+				newValue.forEach(function(item) {
 					eachItem(item)
 				})
+				var contextualized = this.contextualized || this.variable
+				contextualized.notifies(this)
+
 				this.element.appendChild(container)
 			} else {
 				var childElements = this.childElements
@@ -3714,6 +4025,9 @@
 					childElement = each.create({parent: thisElement, _item: item}) // TODO: make a faster object here potentially
 				} else {
 					childElement = each(item, thisElement)
+					if (childElement.create) {
+						childElement = childElement.create({parent: thisElement, _item: item})
+					}
 				}
 				if (nextChild) {
 					container.insertBefore(childElement, nextChild)
@@ -3796,18 +4110,19 @@
 	    if (value && value.notifies) {
 	      return value
 	    }
-	    return new Variable(value)
+	    return Variable.for(value)
 	  }
 	  react.prop = function(object, property) {
 	    if (object) {
-	      var value = object[property]
-	      if (value !== undefined || !object.property) {
-	        return value
-	      } else {
-	        return object.property(property)
+	      // TODO: Use a static set of public methods/properties that can be accessed
+	      if (object.property) {
+	        // it is a variable already, but check to see if we are using a method/property directly on the variable
+	        var directPropertyValue = object[property]
+	        return directPropertyValue !== undefined ? directPropertyValue : object.property(property)
 	      }
+	      return object[property]
 	    }
-	    return object
+	    // not even truthy, return undefined
 	  }
 	  react.cond = function(test, consequent, alternate) {
 	    return operators.if(test, operators.choose(consequent, alternate))
@@ -3892,7 +4207,8 @@
 		operator('>=', 'greaterOrEqual', 8, 'a>=b');
 		operator('<', 'less', 8, 'a<b');
 		operator('<=', 'lessOrEqual', 8, 'a<=b');
-		operator('==', 'equal', 9, 'a===b');
+		operator('===', 'looseEqual', 9, 'a===b');
+		operator('==', 'equal', 9, 'a==b');
 		operator('&', 'and', 8, 'a&&b');
 		operator('|', 'or', 8, 'a||b');
 		operator('round', 'round', 8, 'Math.round(a*Math.pow(10,b||1))/Math.pow(10,b||1)', 'a', 'a');
@@ -3948,7 +4264,7 @@
 					}
 					return derivative
 				}
-				var thisValue = this.getValue(context)
+				var thisValue = this.getValue ? this.getValue(context) : this.value
 				if(thisValue === undefined) {
 					return value
 				}
@@ -4002,7 +4318,11 @@
 
 	var _alkali = __webpack_require__(2);
 
-	var _Todo = __webpack_require__(11);
+	var _Todos = __webpack_require__(11);
+
+	var _Todos2 = _interopRequireDefault(_Todos);
+
+	var _Todo = __webpack_require__(12);
 
 	var _Todo2 = _interopRequireDefault(_Todo);
 
@@ -4055,18 +4375,18 @@
 		placeholder: 'What needs to be done?',
 		// we can variables for any property; when we use a variable in a user-input
 		// driven property, the binding is bi-directional
-		value: _Todo2.default.property('newItem')
+		value: _Todos2.default.property('newItem')
 	})], {
 		onsubmit: function onsubmit(event) {
 			event.preventDefault();
-			_Todo2.default.for(this).add(); // add a new todo when the user submits
+			_Todos2.default.for(this).add(); // add a new todo when the user submits
 		}
 	})]), (0, _alkali.Section)('#main', [(0, _alkali.Checkbox)('#toggle-all', {
-		checked: _Todo2.default.allCompleted
+		checked: _Todos2.default.allCompleted
 	}), _alkali.Label, (0, _alkali.UL)('#todo-list', {
-		content: _Todo2.default.listView,
-		each: (0, _alkali.LI)('.task', [(0, _alkali.Checkbox)('.toggle', _alkali.Item.property('completed')), (0, _alkali.Label)('.view', [_alkali.Item.property('name')], {
-			textDecoration: _alkali.react.from(_alkali.react.cond(_alkali.react.prop(_alkali.Item, 'completed'), 'line-through', 'none')),
+		content: _Todos2.default.listView,
+		each: (0, _alkali.LI)('.task', [(0, _alkali.Checkbox)('.toggle', _Todo2.default.property('completed')), (0, _alkali.Label)('.view', [_Todo2.default.property('name')], {
+			textDecoration: _alkali.react.from(_alkali.react.cond(_alkali.react.prop(_Todo2.default, 'completed'), 'line-through', 'none')),
 			display: _alkali.react.from(_alkali.react.cond(Editing, 'none', 'block')),
 			ondblclick: function ondblclick() {
 				var editing = Editing.for(this);
@@ -4075,7 +4395,7 @@
 			}
 		}), (0, _alkali.Input)('.edit', {
 			display: Editing,
-			value: _alkali.Item.property('name'),
+			value: _Todo2.default.property('name'),
 			onblur: function onblur() {
 				Editing.for(this).put(false);
 			},
@@ -4083,14 +4403,14 @@
 				Editing.for(this).put(false);
 			}
 		}), (0, _alkali.Button)('.destroy', {
-			onclick: _Todo2.default.delete
+			onclick: _Todos2.default.delete
 		})], {
 			hasOwn: Editing
 		})
-	})]), (0, _alkali.Footer)('#footer', [(0, _alkali.Span)('#todo-count', _alkali.react.from(_alkali.react.add(_alkali.react.prop(_Todo2.default, 'todoCount'), _alkali.react.cond(_alkali.react.greater(_alkali.react.prop(_Todo2.default, 'todoCount'), 1), ' items left', ' item left'))), {
-		display: _alkali.react.from(_alkali.react.greater(_alkali.react.prop(_Todo2.default, 'todoCount'), 0))
+	})]), (0, _alkali.Footer)('#footer', [(0, _alkali.Span)('#todo-count', _alkali.react.from(_alkali.react.add(_alkali.react.prop(_Todos2.default, 'todoCount'), _alkali.react.cond(_alkali.react.greater(_alkali.react.prop(_Todos2.default, 'todoCount'), 1), ' items left', ' item left'))), {
+		display: _alkali.react.from(_alkali.react.greater(_alkali.react.prop(_Todos2.default, 'todoCount'), 0))
 	}), (0, _alkali.UL)('#filters', [_alkali.LI, [(0, _alkali.A)({ href: '#/' }, ['All '])], _alkali.LI, [(0, _alkali.A)({ href: '#/active' }, ['Active '])], _alkali.LI, [(0, _alkali.A)({ href: '#/completed' }, ['Completed'])]]), (0, _alkali.Button)('#clear-completed', 'Clear completed', {
-		onclick: _Todo2.default.clearCompleted
+		onclick: _Todos2.default.clearCompleted
 	})])]), (0, _alkali.Footer)('#info', [(0, _alkali.P)('', 'Double-click to edit a todo')])]));
 
 	exports.default = TodoView;
@@ -4110,6 +4430,10 @@
 	var _TodoList = __webpack_require__(1);
 
 	var _TodoList2 = _interopRequireDefault(_TodoList);
+
+	var _Todo = __webpack_require__(12);
+
+	var _Todo2 = _interopRequireDefault(_Todo);
 
 	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -4135,16 +4459,16 @@
 	    CompletedView = void 0;
 	// the main view model
 
-	var Todo = function (_Variable) {
-		_inherits(Todo, _Variable);
+	var Todos = function (_Variable) {
+		_inherits(Todos, _Variable);
 
-		function Todo() {
-			_classCallCheck(this, Todo);
+		function Todos() {
+			_classCallCheck(this, Todos);
 
-			return _possibleConstructorReturn(this, Object.getPrototypeOf(Todo).apply(this, arguments));
+			return _possibleConstructorReturn(this, Object.getPrototypeOf(Todos).apply(this, arguments));
 		}
 
-		return Todo;
+		return Todos;
 	}((0, _alkali.Variable)({
 		add: function add() {
 			// add a new todo
@@ -4165,13 +4489,13 @@
 			});
 		}).setReverse( // and define the reverse action when the checkbox changes
 		function (allCompleted) {
-			return _TodoList2.default.defaultInstance.forEach(_alkali.Item, function (todo) {
+			return _TodoList2.default.defaultInstance.forEach(_Todo2.default, function (todo) {
 				todo.set('completed', allCompleted);
 			});
 		}),
 		delete: function _delete(event) {
 			// delete a todo
-			_TodoList2.default.for(this).delete(_alkali.Item.for(event).valueOf());
+			_TodoList2.default.for(this).delete(_Todo2.default.for(event).valueOf());
 		},
 
 		// our three data "views" of the different filtered todo lists
@@ -4192,10 +4516,50 @@
 		})
 	}));
 
-	exports.default = Todo;
+	exports.default = Todos;
 
 /***/ },
 /* 12 */
+/***/ function(module, exports, __webpack_require__) {
+
+	'use strict';
+
+	Object.defineProperty(exports, "__esModule", {
+	  value: true
+	});
+
+	var _alkali = __webpack_require__(2);
+
+	var _TodoList = __webpack_require__(1);
+
+	var _TodoList2 = _interopRequireDefault(_TodoList);
+
+	function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+	var Todo = function (_Variable) {
+	  _inherits(Todo, _Variable);
+
+	  function Todo() {
+	    _classCallCheck(this, Todo);
+
+	    return _possibleConstructorReturn(this, Object.getPrototypeOf(Todo).apply(this, arguments));
+	  }
+
+	  return Todo;
+	}(_alkali.Variable);
+
+	exports.default = Todo;
+
+	Todo.collection = _TodoList2.default;
+
+/***/ },
+/* 13 */
 /***/ function(module, exports, __webpack_require__) {
 
 	'use strict';
