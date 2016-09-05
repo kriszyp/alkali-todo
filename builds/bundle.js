@@ -74,7 +74,7 @@
 
 	var _alkali = __webpack_require__(2);
 
-	var TodoList = (0, _alkali.Variable)({
+	var TodoList = (0, _alkali.VArray)({
 		// define the default value as an array
 		default: [],
 		clearCompleted: function clearCompleted() {

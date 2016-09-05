@@ -5,9 +5,9 @@ There is not much to this, it is ybasically is a variable that holds
 an array of objects
 */
 
-import { Variable } from 'alkali';
+import { VArray } from 'alkali';
 
-let TodoList = Variable({
+let TodoList = VArray({
 	// define the default value as an array
 	default: [],
 	clearCompleted() {
