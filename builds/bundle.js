@@ -330,7 +330,7 @@
 			var textNode
 			if (content.notifies) {
 				textNode = doc.createTextNode('')
-				enterRenderer(TextRenderer, {
+				new TextRenderer({
 					element: parent,
 					textNode: textNode,
 					variable: content
@@ -343,7 +343,7 @@
 
 		function bidirectionalHandler(element, value, key) {
 			if (value && value.notifies) {
-				enterRenderer(InputPropertyRenderer, {
+				new InputPropertyRenderer({
 					name: key,
 					variable: value,
 					element: element
@@ -390,7 +390,7 @@
 					var flag = classes[className]
 					if (flag && flag.notifies) {
 						// if it is a variable, we react to it
-						enterRenderer(ClassNameRenderer, {
+						new ClassNameRenderer({
 							element: element,
 							className: className,
 							variable: flag
@@ -407,7 +407,7 @@
 				// TODO: This doesn't need to be a property updater
 				// we should also verify it is a generator
 				// and maybe, at some point, find an optimization to eliminate the bind()
-				enterRenderer(PropertyRenderer, {
+				new PropertyRenderer({
 					name: key,
 					variable: new Variable.GeneratorVariable(value.bind(element, properties)),
 					element: element
@@ -427,7 +427,7 @@
 				if (typeof value === 'string') {
 					element.setAttribute('style', value)
 				} else if (value && value.notifies) {
-					enterRenderer(AttributeRenderer, {
+					new AttributeRenderer({
 						name: 'style',
 						variable: value,
 						elment: element
@@ -439,7 +439,7 @@
 		}
 		function applyAttribute(element, value, key) {
 			if (value && value.notifies) {
-				enterRenderer(AttributeRenderer, {
+				new AttributeRenderer({
 					name: key,
 					variable: value,
 					element: element
@@ -464,7 +464,7 @@
 				for (var subKey in value) {
 					var subValue = value[subKey]
 					if (subValue && subValue.notifies) {
-						enterRenderer(SubPropertyRenderer, {
+						new SubPropertyRenderer({
 							name: subKey,
 							variable: subValue,
 							element: element
@@ -484,7 +484,7 @@
 					propertyHandlers[key](element, value, key, properties)
 				} else if ((styleDefinition = styleDefinitions[key]) && element[key] === undefined) {
 					if (value && value.notifies) {
-						enterRenderer(StyleRenderer, {
+						new StyleRenderer({
 							name: key,
 							variable: value,
 							element: element
@@ -493,7 +493,7 @@
 						styleDefinition(element, value, key)
 					}
 				} else if (value && value.notifies) {
-					enterRenderer(PropertyRenderer, {
+					new PropertyRenderer({
 						name: key,
 						variable: value,
 						element: element
@@ -532,7 +532,7 @@
 					}
 				}
 				if (content.notifies) {
-					enterRenderer(ListRenderer, {
+					new ListRenderer({
 						each: each,
 						variable: content,
 						element: element
@@ -608,7 +608,7 @@
 
 			if (content && content.notifies) {
 				// a variable, respond to changes
-				enterRenderer(InputPropertyRenderer, {
+				new InputPropertyRenderer({
 					variable: content,
 					name: inputProperty,
 					element: element
@@ -1168,10 +1168,10 @@
 				hasOwn(this, ThisElementVariable, function(element) {
 					// TODO: we might want to do this in init instead
 					var variableProperties = {}
-					for (var i = 0; i < element.updaters.length; i++){
-						var updater = element.updaters[i]
-						if (updater.name) {
-							variableProperties[updater.name] = {value: updater.variable}
+					for (var i = 0; i < element.alkaliRenderers.length; i++){
+						var renderer = element.alkaliRenderers[i]
+						if (renderer.name) {
+							variableProperties[renderer.name] = {value: renderer.variable}
 						}
 					}
 
@@ -1191,28 +1191,26 @@
 		function enterRenderer(Renderer, options/*, target*/) {
 			// this will be used for optimized class-level variables
 			/*if (target.started) { // TODO: Might want to pass in started as a parameter
-				// this means that the updater has already been created, so we just need to add this instance
+				// this means that the renderer has already been created, so we just need to add this instance
 				Renderer.prototype.renderUpdate.call(options, element)
 			} else {*/
-			var target = options.element
-			var updaters = target.updaters || (target.updaters = [])
-			updaters.push(new Renderer(options))
+			new Renderer(options)
 			//}
 		}
 
 		function cleanup(target) {
-			var updaters = target.updaters
-			if (updaters) {
-				for (var i = 0, l = updaters.length; i < l; i++) {
-					updaters[i].stop()
+			var renderers = target.alkaliRenderers
+			if (renderers) {
+				for (var i = 0, l = renderers.length; i < l; i++) {
+					renderers[i].stop()
 				}
 				target.needsRestart = true
 			}
 		}
 		function restart(target) {
-			var updaters = target.updaters
-			if (updaters) {
-				for (var i = 0, l = updaters.length; i < l; i++) {
+			var renderers = target.alkaliRenderers
+			if (renderers) {
+				for (var i = 0, l = renderers.length; i < l; i++) {
 	//				updaters[i].start()
 				}
 			}
@@ -1648,10 +1646,10 @@
 		}
 		var VariablePrototype = Variable.prototype = {
 			// for debugging use
-			get currentValue() {
+			get _currentValue() {
 				return this.valueOf()
 			},
-			set currentValue(value) {
+			set _currentValue(value) {
 				this.put(value)
 			},
 			constructor: Variable,
@@ -1863,6 +1861,9 @@
 				if (contextualInstance) {
 					contextualInstance.updated(updateEvent, this, context)
 				}
+				/*
+				// at some point we could do an update list so that we could incrementally update
+				// lists in non-live situations
 				if (this.lastUpdate) {
 					var nextUpdateMap = this.nextUpdateMap
 					if (!nextUpdateMap) {
@@ -1871,7 +1872,7 @@
 					nextUpdateMap.set(this.lastUpdate, updateEvent)
 				}
 
-				this.lastUpdate = updateEvent
+				this.lastUpdate = updateEvent */
 				this.updateVersion()
 				var value = this.value
 
@@ -1954,7 +1955,7 @@
 				this.notifies(updateReceiver)
 				return {
 					unsubscribe: function() {
-						this.stopNotifies(updateReceiver)
+						variable.stopNotifies(updateReceiver)
 					}
 				}
 			},
@@ -1973,8 +1974,13 @@
 				var variable = this
 				if (this.ownObject) {
 					this.ownObject = false
-				}			
+				}		
 				return when(this.getValue ? this.getValue(context) : this.value, function(oldValue) {
+					if (variable.__debug) {
+						// _debug _debug is on
+						console.log('Variable changed from', oldValue, newValue, 'at')
+						console.log((new Error().stack || '').replace(/Error/, ''))
+					}
 					if (oldValue === value) {
 						return noChange
 					}
@@ -2195,6 +2201,16 @@
 			_sN: function(name) {
 				// for compilers to set a name
 				this.name = name
+				return this
+			},
+			get _debug() {
+				if (this.__debug === undefined) {
+					this.__debug = true
+				}
+				return this.__debug
+			},
+			set _debug(_debug) {
+				this.__debug = _debug
 			},
 			// TODO: Move these to VArray
 			splice: function(startingIndex, removalCount) {
@@ -2450,6 +2466,11 @@
 						// no actual change to make
 						return noChange
 					}
+					if (variable.__debug) {
+						// debug is on
+						console.log('Variable changed from', oldValue, newValue, 'at')
+						console.log((new Error().stack || '').replace(/Error/, ''))
+					}
 					if (typeof object.set === 'function') {
 						object.set(key, newValue)
 					} else {
@@ -2579,8 +2600,8 @@
 		})
 
 		// a call variable is the result of a call
-		var Call = lang.compose(Composite, function Transform(functionVariable, args) {
-			this.functionVariable = functionVariable
+		var Call = lang.compose(Composite, function Transform(transform, args) {
+			this.transform = transform
 			for (var i = 0, l = args.length; i < l; i++) {
 				this['argument' + i] = args[i]
 			}
@@ -2589,16 +2610,16 @@
 			forDependencies: function(callback) {
 				// depend on the args
 				Composite.prototype.forDependencies.call(this, callback)
-				if (this.functionVariable.notifies) {
-					callback(this.functionVariable)
+				if (this.transform.notifies) {
+					callback(this.transform)
 				}
 			},
 
 			getValue: function(context) {
 				if (context) {
-					context.nextProperty = 'functionVariable'
+					context.nextProperty = 'transform'
 				}
-				var functionValue = this.functionVariable.valueOf(context)
+				var functionValue = this.transform.valueOf(context)
 				if (functionValue.then) {
 					var call = this
 					return functionValue.then(function(functionValue) {
@@ -2611,15 +2632,15 @@
 			getVersion: function(context) {
 				// TODO: shortcut if we are live and since equals this.lastUpdate
 				var argsVersion = Composite.prototype.getVersion.call(this, context)
-				if (this.functionVariable.getVersion) {
-					return Math.max(argsVersion, this.functionVariable.getVersion(context))
+				if (this.transform.getVersion) {
+					return Math.max(argsVersion, this.transform.getVersion(context))
 				}
 				return argsVersion
 			},
 
 			execute: function(context) {
 				var call = this
-				return when(this.functionVariable.valueOf(context), function(functionValue) {
+				return when(this.transform.valueOf(context), function(functionValue) {
 					return call.invoke(functionValue, context, true)
 				})
 			},
@@ -2630,7 +2651,7 @@
 					if (originalValue === value) {
 						return noChange
 					}
-					return when(call.functionVariable.valueOf(context), function(functionValue) {
+					return when(call.transform.valueOf(context), function(functionValue) {
 						return call.invoke(function() {
 							if (functionValue.reverse) {
 								functionValue.reverse.call(call, value, call.getArguments(), context)
@@ -2645,7 +2666,7 @@
 				})
 			},
 			invoke: function(functionValue, context, observeArguments) {
-				var instance = this.functionVariable.parent
+				var instance = this.transform.parent
 				if (functionValue.handlesVariables || functionValue.property) {
 					return functionValue.apply(instance, this.getArguments(), context)
 				}else{
@@ -2692,7 +2713,7 @@
 				}
 			},
 			setReverse: function(reverse) {
-				this.functionVariable.valueOf().reverse = reverse
+				this.transform.valueOf().reverse = reverse
 				return this
 			},
 			getCollectionOf: function() {
@@ -2907,6 +2928,9 @@
 						}
 						// subscribe if it is a variable
 						if (nextVariable && nextVariable.notifies) {
+							if (this.listeners) {
+								nextVariable.notifies(this)
+							}
 							this[argumentName] = nextVariable
 						} else {
 							this[argumentName] = null
@@ -3618,22 +3642,21 @@
 			var variable = options.variable
 
 			this.variable = variable
-			this.elements = []
 			if (options.selector) {
 				this.selector = options.selector
 			}
 			if (options.elements) {
 				this.elements = options.elements
 				this.element = this.elements[0]
+				for(var i = 0, l = this.elements.length; i < l; i++) {
+					(this.elements[i].alkaliRenderers || (this.elements[i].alkaliRenderers = [])).push(this)
+				}
 			}
 			else if (options.element) {
-				this.element = options.element
-				this.elements.push(options.element)
+				var element = this.element = options.element;
+				(element.alkaliRenderers || (element.alkaliRenderers = [])).push(this)
 			} else {
 				throw new Error('No element provided to Renderer')
-			}
-			for(var i = 0, l = this.elements.length; i < l; i++) {
-				(this.elements[i].alkaliRenderers || (this.elements[i].alkaliRenderers = [])).push(this)
 			}
 			if (options.update) {
 				this.updateRendering = options.update
@@ -3706,22 +3729,10 @@
 			},
 			contextMatches: function(context) {
 				return true
-				return context == this.elements ||
-					// if context is any element in this.elements - perhaps return only the specific matching elements?
-					(this.elements.indexOf(context) != -1) ||
-				  // (context is an array and any/all elements are contained in this.elements) ||
-					// context contains() any of this.elements
-					(function(elements) {
-						for(var i = 0, l = elements.length; i < l; i++) {
-							if (context.contains(elements[i])) return true
-						}
-						return false
-					})(this.elements)
 			},
 			invalidateElement: function(element) {
 				if(!invalidatedElements){
 					invalidatedElements = new WeakMap(null, 'invalidated')
-					// TODO: if this is not a real weak map, we don't want to GC it, or it will leak
 				}
 				var invalidatedParts = invalidatedElements.get(element)
 				invalidatedElements.set(element, invalidatedParts = {})
@@ -3742,9 +3753,9 @@
 				return this.id || (this.id = nextId++)
 			},
 			stop: function() {
-				this.variable.stopNotifies(this)
+				var contextualized = this.contextualized || this.variable
+				contextualized.stopNotifies(this)
 			}
-
 		}
 
 		function ElementRenderer(options) {
@@ -3755,28 +3766,34 @@
 			return document.body.contains(element)
 		}
 		ElementRenderer.prototype.getSubject = function () {
-			return this.element || this.elements[0]
+			return this.element
 		}
 		ElementRenderer.prototype.updateRendering = function (always, element) {
-			var elements = this.elements || (element && [element]) || []
-			if(!elements.length){
-				if(this.selector){
-					elements = document.querySelectorAll(this.selector)
-				}else{
-					throw new Error('No element or selector was provided to the Renderer')
+			if (!element && this.elements) {
+				var elements = this.elements
+				if(!elements.length){
+					if(this.selector){
+						elements = document.querySelectorAll(this.selector)
+					}else{
+						throw new Error('No element or selector was provided to the Renderer')
+					}
+					return
 				}
-				return
-			}
-			for(var i = 0, l = elements.length; i < l; i++){
-				if(always || this.shouldRender(elements[i])){
+				for(var i = 0, l = elements.length; i < l; i++){
+					this.updateRendering(always, elements[i])
+				}
+			} else {
+				var thisElement = element || this.element
+
+				if(always || this.shouldRender(thisElement)){
 					// it is connected
-					this.updateElement(elements[i])
-				}else{
+					this.updateElement(thisElement)
+				} else {
 					var id = this.getId()
-					var renderers = elements[i].renderersOnShow
+					var renderers = thisElement.renderersOnShow
 					if(!renderers){
-						renderers = elements[i].renderersOnShow = []
-						elements[i].className += ' needs-rerendering'
+						renderers = thisElement.renderersOnShow = []
+						thisElement.className += ' needs-rerendering'
 					}
 					if (!renderers[id]) {
 						renderers[id] = this
@@ -3862,10 +3879,8 @@
 		InputPropertyRenderer.prototype = Object.create(PropertyRenderer.prototype)
 		InputPropertyRenderer.prototype.type = 'InputPropertyRenderer'
 		InputPropertyRenderer.prototype.renderUpdate = function(newValue, element) {
-			if (element.type === 'number') {
-				if (isNaN(newValue)) {
-					newValue = ''
-				}
+			if (newValue == null || (element.type === 'number' && isNaN(newValue))) {
+				newValue = ''
 			}
 			element[this.name] = newValue
 		}
@@ -3977,7 +3992,7 @@
 			var each = this.each || function(item) { // TODO: make a single identity function
 				return item
 			}
-			var thisElement = this.elements[0]
+			var thisElement = this.element
 			var renderer = this
 			if (!this.builtList) {
 				this.builtList = true
@@ -3994,11 +4009,11 @@
 				var contextualized = this.contextualized || this.variable
 				contextualized.notifies(this)
 
-				this.element.appendChild(container)
+				thisElement.appendChild(container)
 			} else {
 				var childElements = this.childElements
 				var updates = this.updates
-				container = this.element
+				container = thisElement
 				updates.forEach(function(update) {
 					if (update.type === 'refresh') {
 						renderer.builtList = false
@@ -4096,6 +4111,23 @@
 
 	var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(5), __webpack_require__(4), __webpack_require__(8)], __WEBPACK_AMD_DEFINE_RESULT__ = function (lang, Variable, operators) {
 
+	  var ObjectTransform = lang.compose(Variable.Call, function ObjectTransform(transform, inputs) {
+	    this.inputs = inputs
+	    Variable.Call.apply(this, arguments)
+	  }, {
+	    _getAsObject: function() {
+	      return this.transform.apply(this, preserveObjects(this.inputs))
+	    }
+	  })
+	  function preserveObjects(inputs) {
+	    for (var i = 0, l = inputs.length; i < l; i++) {
+	      var input = inputs[i]
+	      if (input && input._getAsObject) {
+	        inputs[i] = input._getAsObject()
+	      }
+	    }
+	    return inputs
+	  }
 		function react(generator, options) {
 	    if (typeof generator !== 'function') {
 	      throw new Error('react() must be called with a generator. You need to use the babel-plugin-transform-alkali plugin if you want to use reactive expressions')
@@ -4107,10 +4139,10 @@
 		}
 	  Object.assign(react, operators)
 	  react.from = function(value) {
-	    if (value && value.notifies) {
+	    if (value && value.property) {
 	      return value
 	    }
-	    return Variable.for(value)
+	    return Variable.from(value)
 	  }
 	  react.prop = function(object, property) {
 	    if (object) {
@@ -4128,11 +4160,31 @@
 	    return operators.if(test, operators.choose(consequent, alternate))
 	  }
 	  react.fcall = function(target, args) {
+	    if (target.property && typeof target === 'function') {
+	      return target.apply(null, preserveObjects(args))
+	    }
 	    return new Variable.Call(target, args)
 	  }
 	  react.mcall = function(target, key, args) {
+	    var method = target[key]
+	    if (method.property && typeof method === 'function') {
+	      return method.apply(target, preserveObjects(args))
+	    }
 	    return new Variable.Call(target[key].bind(target), args)
 	  }
+	  react.ncall = function(target, args) {
+	    if (target.property && typeof target === 'function') {
+	      return new (target.bind.apply(target, [null].concat(preserveObjects(args))))()
+	    }
+	    return new Variable.Call(function() {
+	      return new (target.bind.apply(target, [null].concat(arguments)))()
+	    }, args)
+	  }
+
+	  react.obj = function(transform, inputs) {
+	    return new ObjectTransform(transform, inputs)
+	  }
+
 		return react
 	}.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__), __WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__))
 
@@ -4385,16 +4437,14 @@
 		checked: _Todos2.default.allCompleted
 	}), _alkali.Label, (0, _alkali.UL)('#todo-list', {
 		content: _Todos2.default.listView,
-		each: (0, _alkali.LI)('.task', [(0, _alkali.Checkbox)('.toggle', _Todo2.default.property('completed')), (0, _alkali.Label)('.view', [_Todo2.default.property('name')], {
-			textDecoration: _alkali.react.from(_alkali.react.cond(_alkali.react.prop(_Todo2.default, 'completed'), 'line-through', 'none')),
-			display: _alkali.react.from(_alkali.react.cond(Editing, 'none', 'block')),
+		each: (0, _alkali.LI)('.task', [_alkali.react.from(_alkali.react.fcall(_alkali.Checkbox, ['.toggle', _alkali.react.prop(_Todo2.default, 'completed')])), (0, _alkali.Label)('.view', [_Todo2.default.property('name')], {
+			textDecoration: _alkali.react.from(_alkali.react.cond(_alkali.react.prop(_Todo2.default, 'completed'), 'line-through', 'none'))._sN('textDecoration'),
 			ondblclick: function ondblclick() {
 				var editing = Editing.for(this);
 				editing.put(!editing.valueOf());
 				this.nextSibling.focus();
 			}
 		}), (0, _alkali.Input)('.edit', {
-			display: Editing,
 			value: _Todo2.default.property('name'),
 			onblur: function onblur() {
 				Editing.for(this).put(false);
@@ -4405,11 +4455,16 @@
 		}), (0, _alkali.Button)('.destroy', {
 			onclick: _Todos2.default.delete
 		})], {
-			hasOwn: Editing
+			hasOwn: Editing,
+			classes: {
+				editing: Editing
+			}
 		})
-	})]), (0, _alkali.Footer)('#footer', [(0, _alkali.Span)('#todo-count', _alkali.react.from(_alkali.react.add(_alkali.react.prop(_Todos2.default, 'todoCount'), _alkali.react.cond(_alkali.react.greater(_alkali.react.prop(_Todos2.default, 'todoCount'), 1), ' items left', ' item left'))), {
-		display: _alkali.react.from(_alkali.react.greater(_alkali.react.prop(_Todos2.default, 'todoCount'), 0))
-	}), (0, _alkali.UL)('#filters', [_alkali.LI, [(0, _alkali.A)({ href: '#/' }, ['All '])], _alkali.LI, [(0, _alkali.A)({ href: '#/active' }, ['Active '])], _alkali.LI, [(0, _alkali.A)({ href: '#/completed' }, ['Completed'])]]), (0, _alkali.Button)('#clear-completed', 'Clear completed', {
+	})]), (0, _alkali.Footer)('#footer', [_alkali.react.from(_alkali.react.fcall(_alkali.Span, ['#todo-count', _alkali.react.add(_alkali.react.prop(_Todos2.default, 'todoCount'), _alkali.react.cond(_alkali.react.greater(_alkali.react.prop(_Todos2.default, 'todoCount'), 1), ' items left', ' item left')), _alkali.react.obj(function (v0) {
+		return {
+			display: v0
+		};
+	}, [_alkali.react.greater(_alkali.react.prop(_Todos2.default, 'todoCount'), 0)])])), (0, _alkali.UL)('#filters', [_alkali.LI, [(0, _alkali.A)({ href: '#/' }, ['All '])], _alkali.LI, [(0, _alkali.A)({ href: '#/active' }, ['Active '])], _alkali.LI, [(0, _alkali.A)({ href: '#/completed' }, ['Completed'])]]), (0, _alkali.Button)('#clear-completed', 'Clear completed', {
 		onclick: _Todos2.default.clearCompleted
 	})])]), (0, _alkali.Footer)('#info', [(0, _alkali.P)('', 'Double-click to edit a todo')])]));
 

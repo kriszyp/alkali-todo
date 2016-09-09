@@ -41,10 +41,9 @@ class TodoView extends Div('#todo', [
 			UL('#todo-list', {
 				content: Todos.listView,
 				each: LI('.task', [
-					Checkbox('.toggle', Todo.property('completed')),
+					react(Checkbox('.toggle', Todo.completed)),
 					Label('.view', [Todo.property('name')], {
 						textDecoration: react(Todo.completed ? 'line-through' : 'none'),
-						display: react(Editing ? 'none' : 'block'),
 						ondblclick() {
 							let editing = Editing.for(this);
 							editing.put(!editing.valueOf());
@@ -52,7 +51,6 @@ class TodoView extends Div('#todo', [
 						}
 					}),
 					Input('.edit', {
-						display: Editing,
 						value: Todo.property('name'),
 						onblur() { Editing.for(this).put(false); },
 						onchange() { Editing.for(this).put(false); }
@@ -61,14 +59,17 @@ class TodoView extends Div('#todo', [
 						onclick: Todos.delete
 					})
 				], {
-					hasOwn: Editing
+					hasOwn: Editing,
+					classes: {
+						editing: Editing
+					}
 				})
 			})
 		]),
 		Footer('#footer', [
-			Span('#todo-count', react(Todos.todoCount + (Todos.todoCount > 1 ? ' items left' : ' item left')), {
-				display: react(Todos.todoCount > 0)
-			}),
+			react(Span('#todo-count', Todos.todoCount + (Todos.todoCount > 1 ? ' items left' : ' item left'), {
+				display: Todos.todoCount > 0
+			})),
 			UL('#filters', [
 				LI, [
 					A({href: '#/'}, [
