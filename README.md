@@ -5,7 +5,13 @@ This is the TodoMVC app written with [Alkali](https://github.com/kriszyp/alkali)
 Also checkout the [todomvc performance comparison](https://github.com/kriszyp/todomvc-perf-comparison/), to see alkali's speed in handling todomvc.
 
 # Installation
-To run this, do a `bower install`. To recompile, you will need to do an `npm install` too, to install webpack.
+To run this, do:
+
+	$ npm install
+	$ webpack # assuming you have it installed globaly
+
+and after you can open `index.html` in a browser of your preference
+
 
 # Walk Through
 The entry for the application is [`index.js`](src/index.js), which loads the main "view" component, [`TodoView`](src/TodoView.js), and the model, TodoList, and provides it with some default data. The [`TodoList`](src/TodoList.js) module/class define our data model. This model is basically just a variable with an array, so there isn't much to do in that module. The [`Todos`](src/Todos.js) module is the "view-model" class, defining the a model for the behavior of our UI. And then the [`TodoView`](src/TodoView.js) component is our actual view class. It is an extension of a native DOM element, so we can directly append it to the `document.body` after creating it.
@@ -19,7 +25,7 @@ The `#todo-list` element contains the main content of the application, is bound 
 
 Another key Alkali concept used here is contextualized variables. All of the variables references from the view component are actually classes of variables, they are not direct references to instances. They can be thought of as "generalized" variables, and they will be contextualized as soon as they are used in instantiated components. While the class-based references make it very clear exactly what will be used, this deferred contextualization gives great flexibility in how the instances are created and related to each other. We are using a [`TodoList`](src/TodoList.js) as the data model, and alkali will automatically create a singleton instance for the view by default. However, we can easily specify a relationalship so that we could create multiple instances a the TodoView component that each have their own data model instance. Or we can even create a mock/test TodoList and inject into the TodoView for testing purposes.
 
-We actually use this typo of relationship for the `Editing` variable. In the TodoView, the `Editing` variable is defined (by extending `Variable`), and then associating it with each row in the view. This means there is a distinct instance of this variable created for each row that is generated. These distinct instances can then easily carry the individual view state of each row, as it may toggle between the view and editing state. Again, we simple reference `Editing` anywhere we have interest in this variable, indepedently of the scope or relationship we define for the variable. 
+We actually use this typo of relationship for the `Editing` variable. In the TodoView, the `Editing` variable is defined (by extending `Variable`), and then associating it with each row in the view. This means there is a distinct instance of this variable created for each row that is generated. These distinct instances can then easily carry the individual view state of each row, as it may toggle between the view and editing state. Again, we simple reference `Editing` anywhere we have interest in this variable, indepedently of the scope or relationship we define for the variable.
 
 We also need to be aware of this contextualization in our event handlers; when we operating programmatically, we need to work with direct instances. Therefore, we explicitly contextualize with the `for` calls to get the correct instances.
 
@@ -30,4 +36,3 @@ This module also includes a very simple variable-based router. In this case, it 
 
 ## TodoList and Todo
 And finally the [TodoList module](src/TodoList.js) and [Todo module](src/Todo.js) contains the source data model. This includes a couple methods for deletion and clear completed items. The collection class and item class are linked together with a static `collection` property, which allows the `Todo` class instances to be referenced within loops through a `TodoList` collection.
-
