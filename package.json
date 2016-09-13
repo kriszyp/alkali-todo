@@ -6,7 +6,7 @@
     "watch": "webpack --watch"
   },
   "devDependencies": {
-    "babel-plugin-alkali": "^0.1.2",
+    "babel-plugin-transform-alkali": "^0.1.2",
     "babel-cli": "^6.6.5",
     "babel-core": "^6.7.4",
     "babel-loader": "^6.2.4",

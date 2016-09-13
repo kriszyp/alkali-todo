@@ -103,7 +103,8 @@
 /* 2 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;/// <reference path="./typing.d.ts" />
+	var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;/// <reference path="./index.d.ts" />
+	if (true) {
 	!(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(3), __webpack_require__(4), __webpack_require__(7), __webpack_require__(6), __webpack_require__(8), __webpack_require__(9)], __WEBPACK_AMD_DEFINE_RESULT__ = function(Element, Variable, react, Renderer, operators, Copy) {
 		var main = Object.create(Element)
 		main.Copy = Copy
@@ -122,6 +123,10 @@
 		Object.assign(main, operators)
 		return main
 	}.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__), __WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__))
+	} else if (typeof module === 'object' && module.exports) {
+		// delegate to the built UMD file, if loaded in node
+		module.exports = (require)('./dist/index')
+	}
 
 /***/ },
 /* 3 */
@@ -134,13 +139,7 @@
 		})
 
 		var SELECTOR_REGEX = /(\.|#)([-\w]+)(.+)?/
-		function isGenerator(func) {
-			if (typeof func === 'function') {
-				var constructor = func.constructor
-				return (constructor.displayName || constructor.name) === 'GeneratorFunction'
-			}
-		}
-
+		var isGenerator = lang.isGenerator
 		var Context = Variable.Context
 		var PropertyRenderer = Renderer.PropertyRenderer
 		var InputPropertyRenderer = Renderer.InputPropertyRenderer
@@ -3622,6 +3621,13 @@
 				return target
 			}
 		}
+		function isGenerator(func) {
+			if (typeof func === 'function') {
+				var constructor = func.constructor
+				return (constructor.displayName || constructor.name) === 'GeneratorFunction'
+			}
+		}
+		lang.isGenerator = isGenerator
 		return lang
 	}.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__), __WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__))
 
@@ -4111,6 +4117,7 @@
 
 	var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;!(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(5), __webpack_require__(4), __webpack_require__(8)], __WEBPACK_AMD_DEFINE_RESULT__ = function (lang, Variable, operators) {
 
+	  var isGenerator = lang.isGenerator
 	  var ObjectTransform = lang.compose(Variable.Call, function ObjectTransform(transform, inputs) {
 	    this.inputs = inputs
 	    Variable.Call.apply(this, arguments)
@@ -4138,9 +4145,12 @@
 			return new Variable.GeneratorVariable(generator)
 		}
 	  Object.assign(react, operators)
-	  react.from = function(value) {
+	  react.from = function(value, options) {
 	    if (value && value.property) {
 	      return value
+	    }
+	    if (typeof value === 'function' && isGenerator(value)) {
+	      return react(value, options)
 	    }
 	    return Variable.from(value)
 	  }
@@ -4167,7 +4177,8 @@
 	  }
 	  react.mcall = function(target, key, args) {
 	    var method = target[key]
-	    if (method.property && typeof method === 'function') {
+	    if (typeof method === 'function' && method.property || key === 'bind') {
+	      // for now we check to see if looks like it could handle a variable, or is a bind call
 	      return method.apply(target, preserveObjects(args))
 	    }
 	    return new Variable.Call(target[key].bind(target), args)
