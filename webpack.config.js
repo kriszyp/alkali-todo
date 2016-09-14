@@ -14,10 +14,5 @@ module.exports = {
             }
         ]
     },
-    resolve: {
-        alias: {
-            alkali: path.resolve(__dirname, 'bower_components/alkali')
-        }
-    },
     devtool: 'cheap-source-map'
 };

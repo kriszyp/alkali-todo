@@ -1,7 +1,0 @@
-{
-  "name": "alkali-todo",
-  "dependencies": {
-    "alkali": "^0.10.1",
-    "todomvc-common": "~0.3"
-  }
-}
